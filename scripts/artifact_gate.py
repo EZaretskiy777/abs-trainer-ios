@@ -4,7 +4,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 REQUIRED = {
     "#1 analyst spec": ["docs/product-spec.md"],
-    "#2 designer direction": ["docs/design-direction.md"],
+    "#2 designer direction": ["docs/design-direction.md", "docs/design-redesign-brief.md"],
     "#3 iOS skeleton": ["ios/AbsTrainer/README.md", "ios/AbsTrainer/Sources/AbsTrainer/WorkoutGenerator.swift"],
     "#5 content asset plan": ["docs/asset-plan.md"],
     "#6 orchestration": ["docs/team-orchestration.md", "docs/ownership-map.md"],

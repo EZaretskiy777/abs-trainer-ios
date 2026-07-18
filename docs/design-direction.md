@@ -1,7 +1,7 @@
 # Design direction — ABS Trainer iOS MVP v0.2
 
 ## Status
-First verifiable design artifact for issue #2. This is a direction document for high-fidelity screens; final polished mockups still require approval checkpoint A5.
+First verifiable design artifact for issue #2. The v0.1 polished mockup image was rejected by the user on 2026-07-18 and is not A5-approved. Redesign brief: `docs/design-redesign-brief.md`. Final polished mockups still require approval checkpoint A5.
 
 ## Visual direction
 ```text
