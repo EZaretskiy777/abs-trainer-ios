@@ -37,3 +37,17 @@ Initial SwiftUI skeleton uses this direction in:
 A5 — high-fidelity mockups acceptance.
 
 Pending next artifact: polished image/mockup set for the 4 core screens.
+
+## Polished mockup artifact v0.1
+
+Image artifact:
+`design/assets/mockups/abs-trainer-polished-v01.png`
+
+Scope shown:
+- Home / Parameters;
+- Generated Workout;
+- Exercise Player with 3D placeholder;
+- Finish summary.
+
+This is the first polished visual artifact for A5 review. Final high-fidelity can refine spacing, real iPhone dimensions, and final 3D media.
+
