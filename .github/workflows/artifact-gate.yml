@@ -1,0 +1,13 @@
+name: Artifact Gate
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+jobs:
+  artifact-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check required project artifacts
+        run: python3 scripts/artifact_gate.py
