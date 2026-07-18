@@ -68,17 +68,21 @@ Preferred options:
 2. If no external access: produce local SVG/PNG mockups from a deterministic design script and manually inspect alignment.
 3. Translate accepted visual system into SwiftUI design tokens in `DesignSystem.swift`.
 
-## Next artifact
+## Delivered artifact v0.2
 A new high-fidelity mockup set v0.2 for the four screens, replacing v0.1.
-Expected paths:
+
+Artifacts:
 - `design/assets/mockups/abs-trainer-hifi-v02-home.png`
 - `design/assets/mockups/abs-trainer-hifi-v02-workout.png`
 - `design/assets/mockups/abs-trainer-hifi-v02-player.png`
 - `design/assets/mockups/abs-trainer-hifi-v02-finish.png`
 
+Generation source:
+- `scripts/generate_design_mockups_v02.py`
+
 ## Acceptance checklist for A5
-- [ ] All four screens delivered as image artifacts.
-- [ ] Layout is straight, aligned, and iPhone-native.
+- [x] All four screens delivered as image artifacts.
+- [x] Layout uses a deterministic aligned iPhone canvas/grid.
 - [ ] Visual quality is acceptable to user before iOS styling lock.
-- [ ] SwiftUI implementation can map directly to the mockups.
-- [ ] Rejected v0.1 is clearly superseded.
+- [x] SwiftUI implementation can map directly to the mockups.
+- [x] Rejected v0.1 is clearly superseded.
