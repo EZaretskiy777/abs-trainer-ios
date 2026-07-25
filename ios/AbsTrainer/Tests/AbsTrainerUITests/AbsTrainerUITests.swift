@@ -38,9 +38,9 @@ final class AbsTrainerUITests: XCTestCase {
             let finish = app.buttons["Завершить"]
             if finish.exists {
                 finish.tap()
-                let confirmation = app.alerts["Завершить последнее упражнение?"]
+                let confirmation = app.descendants(matching: .any)["session.confirmation.finishEarly"]
                 XCTAssertTrue(confirmation.waitForExistence(timeout: 2))
-                confirmation.buttons["Завершить"].tap()
+                app.buttons["session.confirmation.finishEarly.destructive"].tap()
                 break
             }
 
@@ -155,6 +155,60 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
+    func testDurationDialStepControlsPreserveAllowedValuesAndEndpointStates() throws {
+        let app = launchApp(viewport: CGSize(width: 393, height: 852))
+        let dial = app.descendants(matching: .any)["setup.durationDial"]
+        let decrement = app.buttons["setup.durationDial.decrement"]
+        let increment = app.buttons["setup.durationDial.increment"]
+
+        XCTAssertTrue(dial.waitForExistence(timeout: 5))
+        XCTAssertEqual(dial.value as? String, "10 минут")
+        XCTAssertTrue(decrement.isEnabled)
+        XCTAssertTrue(increment.isEnabled)
+
+        increment.tap()
+        XCTAssertEqual(dial.value as? String, "15 минут")
+        XCTAssertFalse(increment.isEnabled)
+
+        decrement.tap()
+        decrement.tap()
+        XCTAssertEqual(dial.value as? String, "5 минут")
+        XCTAssertFalse(decrement.isEnabled)
+        XCTAssertTrue(increment.isEnabled)
+        attachScreenshot(named: "duration-dial-minimum")
+    }
+
+    @MainActor
+    func testExitConfirmationUsesSafeDefaultAndRestoresOpenerFocus() throws {
+        let app = launchApp(viewport: CGSize(width: 393, height: 852))
+        navigateToSession(in: app)
+
+        let exit = app.buttons["session.exit"]
+        XCTAssertTrue(exit.waitForExistence(timeout: 5))
+        exit.tap()
+
+        let modal = app.descendants(matching: .any)["session.confirmation.exit"]
+        let title = app.staticTexts["session.confirmation.exit.title"]
+        let message = app.staticTexts["session.confirmation.exit.message"]
+        let cancel = app.buttons["session.confirmation.exit.cancel"]
+        let destructive = app.buttons["session.confirmation.exit.destructive"]
+        XCTAssertTrue(modal.waitForExistence(timeout: 3))
+        XCTAssertTrue(cancel.isHittable)
+        XCTAssertTrue(destructive.isHittable)
+        XCTAssertLessThan(title.frame.maxY, message.frame.minY)
+        XCTAssertLessThan(message.frame.maxY, cancel.frame.minY)
+        XCTAssertLessThan(cancel.frame.maxY, destructive.frame.minY)
+        XCTAssertFalse(app.buttons["session.pause"].isHittable)
+        attachScreenshot(named: "session-exit-confirmation")
+
+        cancel.tap()
+        XCTAssertTrue(exit.waitForExistence(timeout: 3))
+        XCTAssertTrue(exit.isHittable)
+        let focusProbe = app.descendants(matching: .any)["validation.ax.focus.exitButton"].firstMatch
+        XCTAssertTrue(focusProbe.waitForExistence(timeout: 3))
+    }
+
+    @MainActor
     private func launchApp(
         viewport: CGSize? = nil,
         contentSizeCategory: String? = nil
@@ -199,9 +253,12 @@ final class AbsTrainerUITests: XCTestCase {
         let setup = setupButton(in: app)
         XCTAssertTrue(setup.waitForExistence(timeout: 5))
         assertCriticalControls([setup], in: container)
-        let durationButtons = ["5 минут", "10 минут", "15 минут"].map { app.buttons[$0] }
-        assertCriticalControls(durationButtons, in: container)
-        assertPairwiseNonOverlapping(durationButtons.map(\.frame))
+        let durationDial = app.descendants(matching: .any)["setup.durationDial"]
+        let decrement = app.buttons["setup.durationDial.decrement"]
+        let increment = app.buttons["setup.durationDial.increment"]
+        scrollIntoView([durationDial, decrement, increment], in: app)
+        assertCriticalControls([durationDial, decrement, increment], in: container)
+        assertNonOverlapping(decrement.frame, increment.frame)
         attachScreenshot(named: "\(screenshotPrefix)-01-setup")
         setup.tap()
 
@@ -216,12 +273,14 @@ final class AbsTrainerUITests: XCTestCase {
         var capturedActive = false
         var capturedRest = false
         for _ in 0..<100 {
-            let skipRest = app.buttons["Пропустить отдых"]
-            if skipRest.waitForExistence(timeout: 1) {
+            let restTitle = app.staticTexts["session.rest.nextTitle"]
+            if restTitle.waitForExistence(timeout: 1) {
+                let skipRest = app.buttons["Пропустить отдых"]
+                XCTAssertTrue(skipRest.waitForExistence(timeout: 2))
                 assertCriticalControls([skipRest], in: container)
                 let restElements = [
                     app.staticTexts["session.rest.nextEyebrow"],
-                    app.staticTexts["session.rest.nextTitle"],
+                    restTitle,
                     app.staticTexts["session.rest.nextDuration"]
                 ]
                 for element in restElements {
@@ -229,6 +288,7 @@ final class AbsTrainerUITests: XCTestCase {
                     XCTAssertFalse(element.frame.isEmpty)
                     assertContained(element.frame, in: container.frame)
                 }
+                assertPairwiseNonOverlapping((restElements + [skipRest]).map(\.frame))
                 if !capturedRest {
                     attachScreenshot(named: "\(screenshotPrefix)-04-rest")
                     capturedRest = true
@@ -249,6 +309,8 @@ final class AbsTrainerUITests: XCTestCase {
             let countdownContext = app.staticTexts["session.active.timerContext"]
             XCTAssertTrue(countdown.waitForExistence(timeout: 2))
             XCTAssertTrue(countdownContext.waitForExistence(timeout: 2))
+            assertContained(countdown.frame, in: container.frame)
+            assertContained(countdownContext.frame, in: container.frame)
             assertCountdownComposition(countdown.frame, countdownContext.frame)
             if !capturedActive {
                 attachScreenshot(named: "\(screenshotPrefix)-03-active")
@@ -256,9 +318,9 @@ final class AbsTrainerUITests: XCTestCase {
             }
 
             next.tap()
-            let confirmation = app.alerts["Завершить последнее упражнение?"]
+            let confirmation = app.descendants(matching: .any)["session.confirmation.finishEarly"]
             if confirmation.waitForExistence(timeout: 0.5) {
-                let finishConfirmation = confirmation.buttons["Завершить"]
+                let finishConfirmation = app.buttons["session.confirmation.finishEarly.destructive"]
                 XCTAssertTrue(finishConfirmation.isHittable)
                 finishConfirmation.tap()
                 break
@@ -281,6 +343,12 @@ final class AbsTrainerUITests: XCTestCase {
             XCTAssertTrue(control.isHittable, "Critical control \(control) must be hittable")
             XCTAssertFalse(control.frame.isEmpty, "Critical control \(control) must have a non-empty frame")
             assertContained(control.frame, in: container.frame)
+        }
+    }
+
+    private func scrollIntoView(_ controls: [XCUIElement], in app: XCUIApplication) {
+        for _ in 0..<4 where !controls.allSatisfy(\.isHittable) {
+            app.swipeUp()
         }
     }
 
