@@ -14,17 +14,14 @@ struct ContentView: View {
     @State private var isGenerating = false
     @ScaledMetric(relativeTo: .largeTitle) private var displayTitleSize = 42
     @AccessibilityFocusState private var setupTitleFocused: Bool
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
 
     private let generator = WorkoutGenerator()
 
     var body: some View {
         NavigationStack(path: $path) {
             ScrollView {
-                VStack(alignment: .leading, spacing: TempoTokens.Space.xxl) {
-                    header
-                    durationPicker
-                    zonePicker
-                }
+                setupContent
                 .padding(.horizontal, TempoTokens.Space.outer)
                 .padding(.top, TempoTokens.Space.xl)
                 .padding(.bottom, 88)
@@ -70,6 +67,27 @@ struct ContentView: View {
         .tint(TempoTokens.ColorToken.carbon)
         .preferredColorScheme(.light)
         .onAppear { setupTitleFocused = true }
+    }
+
+    @ViewBuilder
+    private var setupContent: some View {
+        if verticalSizeClass == .compact {
+            HStack(alignment: .top, spacing: TempoTokens.Space.xxl) {
+                header
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: TempoTokens.Space.xxl) {
+                    durationPicker
+                    zonePicker
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: TempoTokens.Space.xxl) {
+                header
+                durationPicker
+                zonePicker
+            }
+        }
     }
 
     private var header: some View {
