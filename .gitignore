@@ -3,3 +3,5 @@
 artifacts/
 DerivedData/
 *.xcresult
+__pycache__/
+*.py[cod]

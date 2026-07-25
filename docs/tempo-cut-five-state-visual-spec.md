@@ -1,7 +1,7 @@
 # ABS Trainer «Темп / Срез» — визуальная спецификация пяти состояний
 
-Статус: **утверждённый A5 design, без переосмысления**  
-Назначение: implementation contract для iOS / SwiftUI  
+Статус: **утверждённый A5 design, без переосмысления**
+Назначение: implementation contract для iOS / SwiftUI
 Эталонный viewport макетов: **393×852 pt**; compact reference: **320×700 pt**
 
 ## 1. Источники и приоритет

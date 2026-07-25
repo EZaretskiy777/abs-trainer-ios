@@ -1,10 +1,10 @@
 # ABS Trainer «Темп / Срез» — круговой выбор длительности
 
-Статус: implementation-ready design handoff  
-Задача: `t_00afd5b0`  
-Платформа: iOS / SwiftUI  
-Экран: Setup / «Соберите свой темп»  
-Эталон: `design/tempo-cut/previews/tempo-cut-home.png`  
+Статус: implementation-ready design handoff
+Задача: `t_00afd5b0`
+Платформа: iOS / SwiftUI
+Экран: Setup / «Соберите свой темп»
+Эталон: `design/tempo-cut/previews/tempo-cut-home.png`
 Preview: `design/tempo-cut/previews/duration-dial-spec.png`
 
 Preview generator: `design/tempo-cut/duration-dial-preview.py`. Checked PNGs use locally staged Google Fonts Noto Sans variable files: `NotoSans.ttf` SHA-256 `bfb7bb691513f12e734dc346c03a03f784912432d7e3fa8e56efcf906fe86b3d`, `NotoSansMono.ttf` SHA-256 `2cb2adb378a8f574213e23df697050b83c54c27df465a2015552740b2769a081`. These fonts are generation inputs, not app assets; production uses the iOS system font.
