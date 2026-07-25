@@ -256,8 +256,9 @@ final class AbsTrainerUITests: XCTestCase {
         let durationDial = app.descendants(matching: .any)["setup.durationDial"]
         let decrement = app.buttons["setup.durationDial.decrement"]
         let increment = app.buttons["setup.durationDial.increment"]
-        scrollIntoView([durationDial, decrement, increment], in: app, container: container)
-        assertCriticalControls([durationDial, decrement, increment], in: container)
+        let setupVisibleFrame = visibleFrame(above: setup, in: container)
+        scrollIntoView([durationDial, decrement, increment], in: app, visibleFrame: setupVisibleFrame)
+        assertCriticalControls([durationDial, decrement, increment], in: setupVisibleFrame)
         assertNonOverlapping(decrement.frame, increment.frame)
         attachScreenshot(named: "\(screenshotPrefix)-01-setup")
         setup.tap()
@@ -309,9 +310,10 @@ final class AbsTrainerUITests: XCTestCase {
             let countdownContext = app.staticTexts["session.active.timerContext"]
             XCTAssertTrue(countdown.waitForExistence(timeout: 2))
             XCTAssertTrue(countdownContext.waitForExistence(timeout: 2))
-            scrollIntoView([countdown, countdownContext], in: app, container: container)
-            assertContained(countdown.frame, in: container.frame)
-            assertContained(countdownContext.frame, in: container.frame)
+            let activeVisibleFrame = visibleFrame(above: pause, in: container)
+            scrollIntoView([countdown, countdownContext], in: app, visibleFrame: activeVisibleFrame)
+            assertContained(countdown.frame, in: activeVisibleFrame)
+            assertContained(countdownContext.frame, in: activeVisibleFrame)
             assertCountdownComposition(countdown.frame, countdownContext.frame)
             if !capturedActive {
                 attachScreenshot(named: "\(screenshotPrefix)-03-active")
@@ -339,26 +341,40 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     private func assertCriticalControls(_ controls: [XCUIElement], in container: XCUIElement) {
+        assertCriticalControls(controls, in: container.frame)
+    }
+
+    private func assertCriticalControls(_ controls: [XCUIElement], in containerFrame: CGRect) {
         for control in controls {
             XCTAssertTrue(control.exists, "Critical control must exist")
             XCTAssertTrue(control.isHittable, "Critical control \(control) must be hittable")
             XCTAssertFalse(control.frame.isEmpty, "Critical control \(control) must have a non-empty frame")
-            assertContained(control.frame, in: container.frame)
+            assertContained(control.frame, in: containerFrame)
         }
     }
 
     private func scrollIntoView(
         _ controls: [XCUIElement],
         in app: XCUIApplication,
-        container: XCUIElement
+        visibleFrame: CGRect
     ) {
         for _ in 0..<4 where !controls.allSatisfy({ control in
             control.isHittable
-                && control.frame.minY >= container.frame.minY - tolerance
-                && control.frame.maxY <= container.frame.maxY + tolerance
+                && control.frame.minY >= visibleFrame.minY - tolerance
+                && control.frame.maxY <= visibleFrame.maxY + tolerance
         }) {
             app.swipeUp()
         }
+    }
+
+    private func visibleFrame(above obstruction: XCUIElement, in container: XCUIElement) -> CGRect {
+        let containerFrame = container.frame
+        return CGRect(
+            x: containerFrame.minX,
+            y: containerFrame.minY,
+            width: containerFrame.width,
+            height: max(0, obstruction.frame.minY - containerFrame.minY)
+        )
     }
 
     private func waitForVisualStability() {
