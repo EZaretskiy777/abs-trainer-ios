@@ -256,7 +256,7 @@ final class AbsTrainerUITests: XCTestCase {
         let durationDial = app.descendants(matching: .any)["setup.durationDial"]
         let decrement = app.buttons["setup.durationDial.decrement"]
         let increment = app.buttons["setup.durationDial.increment"]
-        scrollIntoView([durationDial, decrement, increment], in: app)
+        scrollIntoView([durationDial, decrement, increment], in: app, container: container)
         assertCriticalControls([durationDial, decrement, increment], in: container)
         assertNonOverlapping(decrement.frame, increment.frame)
         attachScreenshot(named: "\(screenshotPrefix)-01-setup")
@@ -346,8 +346,16 @@ final class AbsTrainerUITests: XCTestCase {
         }
     }
 
-    private func scrollIntoView(_ controls: [XCUIElement], in app: XCUIApplication) {
-        for _ in 0..<4 where !controls.allSatisfy(\.isHittable) {
+    private func scrollIntoView(
+        _ controls: [XCUIElement],
+        in app: XCUIApplication,
+        container: XCUIElement
+    ) {
+        for _ in 0..<4 where !controls.allSatisfy({ control in
+            control.isHittable
+                && control.frame.minY >= container.frame.minY - tolerance
+                && control.frame.maxY <= container.frame.maxY + tolerance
+        }) {
             app.swipeUp()
         }
     }

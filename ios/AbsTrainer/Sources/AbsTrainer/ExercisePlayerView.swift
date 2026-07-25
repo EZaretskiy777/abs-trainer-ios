@@ -4,7 +4,9 @@ import UIKit
 struct ExercisePlayerView: View {
     private enum FocusElement: Hashable {
         case stateTitle
+        case exitButton
         case pauseButton
+        case nextButton
         case pauseDialog
     }
 
@@ -13,11 +15,13 @@ struct ExercisePlayerView: View {
     let onNewWorkout: () -> Void
 
     @StateObject private var store: WorkoutSessionStore
-    @State private var showsExitConfirmation = false
-    @State private var showsFinishConfirmation = false
+    @State private var confirmation: SessionConfirmationVariant?
+    @State private var confirmationOpener: FocusElement?
+    @State private var confirmationTransitioning = false
     @State private var lastAnnouncedSecond: Int?
     @State private var validationFocusProbe = "none"
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorSchemeContrast) private var accessibilityContrast
     @Environment(\.scenePhase) private var scenePhase
     @ScaledMetric(relativeTo: .largeTitle) private var activeTimerSize = 68
     @ScaledMetric(relativeTo: .largeTitle) private var activeTitleSize = 30
@@ -59,12 +63,22 @@ struct ExercisePlayerView: View {
                     )
                 }
             }
-            .accessibilityHidden(store.isPaused)
-            .allowsHitTesting(!store.isPaused)
+            .accessibilityHidden(isModalPresented)
+            .allowsHitTesting(!isModalPresented)
 
             if store.isPaused {
                 pauseOverlay
                     .transition(reduceMotion ? .opacity : .scale(scale: 0.96).combined(with: .opacity))
+            }
+
+            if let confirmation {
+                SessionConfirmationModal(
+                    variant: confirmation,
+                    isTransitioning: confirmationTransitioning,
+                    onCancel: cancelConfirmation,
+                    onConfirm: confirmDestructiveAction
+                )
+                .transition(reduceMotion ? .opacity : .scale(scale: 0.96).combined(with: .opacity))
             }
 
             if validationMode {
@@ -103,18 +117,6 @@ struct ExercisePlayerView: View {
         .onChange(of: store.isPaused) { isPaused in
             setFocus(isPaused ? .pauseDialog : .pauseButton)
         }
-        .alert("Завершить тренировку?", isPresented: $showsExitConfirmation) {
-            Button("Продолжить тренировку", role: .cancel) {}
-            Button("Завершить", role: .destructive, action: onNewWorkout)
-        } message: {
-            Text("Прогресс этой сессии не сохранится.")
-        }
-        .alert("Завершить последнее упражнение?", isPresented: $showsFinishConfirmation) {
-            Button("Продолжить тренировку", role: .cancel) {}
-            Button("Завершить", role: .destructive) { store.skipExercise() }
-        } message: {
-            Text("До конца упражнения ещё осталось время.")
-        }
     }
 
     private var exerciseScreen: some View {
@@ -138,17 +140,13 @@ struct ExercisePlayerView: View {
 
                     ExerciseMediaAperture(exercise: store.currentItem.exercise)
 
-                    ViewThatFits(in: .horizontal) {
-                        HStack(alignment: .center, spacing: TempoTokens.Space.md) {
-                            activeCountdown
-                            Spacer(minLength: TempoTokens.Space.sm)
-                            activeCountdownLabel
-                                .frame(maxWidth: 116, alignment: .leading)
-                        }
-                        VStack(alignment: .leading, spacing: TempoTokens.Space.xxs) {
-                            activeCountdown
-                            activeCountdownLabel
-                        }
+                    if validationMode {
+                        activeCountdownComposition
+                    } else {
+                        activeCountdownComposition
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel("Осталось \(store.remainingSeconds) секунд в этом упражнении")
+                            .accessibilityIdentifier("session.active.countdownGroup")
                     }
                 }
                 .padding(.horizontal, TempoTokens.Space.outer)
@@ -159,18 +157,12 @@ struct ExercisePlayerView: View {
         .foregroundStyle(.white)
         .safeAreaInset(edge: .bottom) {
             HStack(spacing: TempoTokens.Space.sm) {
-                Button(action: { store.pause() }) {
-                    Image(systemName: "pause.fill")
-                        .font(.headline)
-                        .foregroundStyle(TempoTokens.SemanticColor.inversePrimary.color)
-                        .frame(width: TempoTokens.Size.pauseControl, height: TempoTokens.Size.pauseControl)
-                        .overlay {
-                            Circle()
-                                .stroke(TempoTokens.SemanticColor.inverseControlBorder.color, lineWidth: 1)
-                        }
-                        .clipShape(Circle())
-                }
-                .accessibilityLabel("Поставить тренировку на паузу")
+                InverseIconButton(
+                    symbol: "pause.fill",
+                    size: TempoTokens.Size.pauseControl,
+                    accessibilityLabel: "Поставить тренировку на паузу",
+                    action: { store.pause() }
+                )
                 .accessibilityIdentifier("session.pause")
                 .accessibilityFocused($focusedElement, equals: .pauseButton)
 
@@ -182,6 +174,7 @@ struct ExercisePlayerView: View {
                         .foregroundStyle(Color.white)
                         .clipShape(RoundedRectangle(cornerRadius: TempoTokens.Radius.button, style: .continuous))
                 }
+                .accessibilityFocused($focusedElement, equals: .nextButton)
             }
             .buttonStyle(.plain)
             .padding(.horizontal, TempoTokens.Space.outer)
@@ -192,13 +185,15 @@ struct ExercisePlayerView: View {
 
     private var playerTopBar: some View {
         HStack {
-            Button(action: { showsExitConfirmation = true }) {
-                Image(systemName: "xmark")
-                    .font(.headline.weight(.semibold))
-                    .frame(width: 48, height: 48)
-                    .contentShape(Rectangle())
+            InverseIconButton(
+                symbol: "xmark",
+                size: TempoTokens.Size.iconControl,
+                accessibilityLabel: "Завершить тренировку"
+            ) {
+                presentConfirmation(.exitSession, opener: .exitButton)
             }
-            .accessibilityLabel("Завершить тренировку")
+            .accessibilityIdentifier("session.exit")
+            .accessibilityFocused($focusedElement, equals: .exitButton)
             Spacer()
             Text(String(format: "%02d / %02d", store.currentIndex + 1, plan.items.count))
                 .font(.subheadline.weight(.semibold).monospacedDigit())
@@ -215,7 +210,7 @@ struct ExercisePlayerView: View {
                     .font(.caption.weight(.semibold))
                     .textCase(.uppercase)
                     .tracking(1.2)
-                    .foregroundStyle(TempoTokens.SemanticColor.inverseSecondary.color)
+                    .foregroundStyle(inverseSecondaryColor)
                 Text("Вдох.\nМедленный\nвыдох.")
                     .font(.system(size: restTitleSize, weight: .bold))
                     .foregroundStyle(TempoTokens.SemanticColor.inversePrimary.color)
@@ -230,11 +225,13 @@ struct ExercisePlayerView: View {
                     .fill(TempoTokens.SemanticColor.inverseDivider.color)
                     .frame(height: 2)
                     .padding(.vertical, TempoTokens.Space.md)
+                    .accessibilityHidden(true)
             }
             .padding(.horizontal, TempoTokens.Space.outer)
             .padding(.vertical, TempoTokens.Space.xl)
         }
         .foregroundStyle(.white)
+        .tint(.white)
         .safeAreaInset(edge: .bottom) {
             restBottomBlock
         }
@@ -323,10 +320,25 @@ struct ExercisePlayerView: View {
             .accessibilityIdentifier("session.active.timer")
     }
 
+    private var activeCountdownComposition: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: TempoTokens.Space.md) {
+                activeCountdown
+                Spacer(minLength: TempoTokens.Space.sm)
+                activeCountdownLabel
+                    .frame(maxWidth: 116, alignment: .leading)
+            }
+            VStack(alignment: .leading, spacing: TempoTokens.Space.xxs) {
+                activeCountdown
+                activeCountdownLabel
+            }
+        }
+    }
+
     private var activeCountdownLabel: some View {
         Text("Осталось в этом упражнении")
             .font(.caption.weight(.semibold))
-            .foregroundStyle(TempoTokens.SemanticColor.inverseSecondary.color)
+            .foregroundStyle(inverseSecondaryColor)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityIdentifier("session.active.timerContext")
     }
@@ -338,7 +350,7 @@ struct ExercisePlayerView: View {
                     Text("Дальше · \(next.order) из \(plan.items.count)")
                         .font(.caption.weight(.semibold))
                         .textCase(.uppercase)
-                        .foregroundStyle(TempoTokens.SemanticColor.inverseSecondary.color)
+                        .foregroundStyle(inverseSecondaryColor)
                         .accessibilityIdentifier("session.rest.nextEyebrow")
                     ViewThatFits(in: .horizontal) {
                         HStack(alignment: .firstTextBaseline) {
@@ -355,9 +367,11 @@ struct ExercisePlayerView: View {
                 .padding(.vertical, TempoTokens.Space.md)
                 .overlay(alignment: .top) {
                     Rectangle().fill(TempoTokens.SemanticColor.inverseDivider.color).frame(height: 1)
+                        .accessibilityHidden(true)
                 }
                 .overlay(alignment: .bottom) {
                     Rectangle().fill(TempoTokens.SemanticColor.inverseDivider.color).frame(height: 1)
+                        .accessibilityHidden(true)
                 }
             }
 
@@ -368,12 +382,14 @@ struct ExercisePlayerView: View {
                 .contentShape(Rectangle())
                 .overlay {
                     RoundedRectangle(cornerRadius: TempoTokens.Radius.button, style: .continuous)
-                        .stroke(TempoTokens.SemanticColor.inverseControlBorder.color, lineWidth: 1)
+                        .stroke(inverseControlBorderColor, lineWidth: accessibilityContrast == .increased ? 2 : 1)
                 }
+                .accessibilityIdentifier("session.rest.skip")
         }
         .padding(.horizontal, TempoTokens.Space.outer)
         .padding(.vertical, TempoTokens.Space.sm)
         .background(TempoTokens.ColorToken.ultramarine)
+        .tint(.white)
     }
 
     private var sessionBackground: Color {
@@ -384,6 +400,22 @@ struct ExercisePlayerView: View {
         }
     }
 
+    private var isModalPresented: Bool {
+        store.isPaused || confirmation != nil
+    }
+
+    private var inverseSecondaryColor: Color {
+        accessibilityContrast == .increased
+            ? Color.white
+            : TempoTokens.SemanticColor.inverseSecondary.color
+    }
+
+    private var inverseControlBorderColor: Color {
+        accessibilityContrast == .increased
+            ? Color.white
+            : TempoTokens.SemanticColor.inverseControlBorder.color
+    }
+
     private var nextActionTitle: String {
         if store.nextItem == nil { return "Завершить" }
         return "Далее · отдых \(store.currentItem.restAfterSec) сек"
@@ -391,9 +423,39 @@ struct ExercisePlayerView: View {
 
     private func advanceFromExercise() {
         if store.nextItem == nil, store.remainingSeconds > 0 {
-            showsFinishConfirmation = true
+            presentConfirmation(.finishLastExerciseEarly, opener: .nextButton)
         } else {
             store.skipExercise()
+        }
+    }
+
+    private func presentConfirmation(_ variant: SessionConfirmationVariant, opener: FocusElement) {
+        guard confirmation == nil, !store.isPaused else { return }
+        confirmationOpener = opener
+        confirmationTransitioning = false
+        confirmation = variant
+        setFocus(nil)
+    }
+
+    private func cancelConfirmation() {
+        guard !confirmationTransitioning else { return }
+        let opener = confirmationOpener
+        confirmation = nil
+        confirmationOpener = nil
+        DispatchQueue.main.async { setFocus(opener) }
+    }
+
+    private func confirmDestructiveAction() {
+        guard let confirmation, !confirmationTransitioning else { return }
+        confirmationTransitioning = true
+        switch confirmation {
+        case .exitSession:
+            onNewWorkout()
+        case .finishLastExerciseEarly:
+            store.skipExercise()
+            self.confirmation = nil
+            confirmationOpener = nil
+            confirmationTransitioning = false
         }
     }
 
@@ -425,7 +487,9 @@ struct ExercisePlayerView: View {
         guard validationMode else { return }
         switch element {
         case .stateTitle: validationFocusProbe = "stateTitle"
+        case .exitButton: validationFocusProbe = "exitButton"
         case .pauseButton: validationFocusProbe = "pauseButton"
+        case .nextButton: validationFocusProbe = "nextButton"
         case .pauseDialog: validationFocusProbe = "pauseDialog"
         case nil: validationFocusProbe = "none"
         }

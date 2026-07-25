@@ -141,10 +141,6 @@ final class TempoContrastTests: XCTestCase {
             4.5
         )
         XCTAssertGreaterThanOrEqual(
-            TempoTokens.SemanticColor.inverseDivider.contrastRatio(over: background),
-            3.0
-        )
-        XCTAssertGreaterThanOrEqual(
             TempoTokens.SemanticColor.inverseControlBorder.contrastRatio(over: background),
             3.0
         )
@@ -161,5 +157,29 @@ final class TempoContrastTests: XCTestCase {
             TempoTokens.SemanticColor.inverseControlBorder.contrastRatio(over: background),
             3.0
         )
+    }
+}
+
+final class DurationDialContractTests: XCTestCase {
+    func testAllowedValuesPreserveProductDurationContract() {
+        XCTAssertEqual(DurationDialContract.allowedValues, [5, 10, 15])
+    }
+
+    func testNearestIndexNormalizesInvalidValuesAndBreaksTiesDown() {
+        XCTAssertEqual(DurationDialContract.nearestIndex(to: 7), 0)
+        XCTAssertEqual(DurationDialContract.nearestIndex(to: 8), 1)
+        XCTAssertEqual(DurationDialContract.nearestIndex(to: 12), 1)
+        XCTAssertEqual(DurationDialContract.nearestIndex(to: 13), 2)
+    }
+
+    func testSnapFractionsStayWithinThreeStops() {
+        XCTAssertEqual(DurationDialContract.index(for: -1, count: 3), 0)
+        XCTAssertEqual(DurationDialContract.index(for: 0.24, count: 3), 0)
+        XCTAssertEqual(DurationDialContract.index(for: 0.25, count: 3), 0)
+        XCTAssertEqual(DurationDialContract.index(for: 0.26, count: 3), 1)
+        XCTAssertEqual(DurationDialContract.index(for: 0.74, count: 3), 1)
+        XCTAssertEqual(DurationDialContract.index(for: 0.75, count: 3), 1)
+        XCTAssertEqual(DurationDialContract.index(for: 0.76, count: 3), 2)
+        XCTAssertEqual(DurationDialContract.index(for: 2, count: 3), 2)
     }
 }

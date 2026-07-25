@@ -15,7 +15,6 @@ struct ContentView: View {
     @ScaledMetric(relativeTo: .largeTitle) private var displayTitleSize = 42
     @AccessibilityFocusState private var setupTitleFocused: Bool
 
-    private let durations = [5, 10, 15]
     private let generator = WorkoutGenerator()
 
     var body: some View {
@@ -95,31 +94,11 @@ struct ContentView: View {
     private var durationPicker: some View {
         VStack(alignment: .leading, spacing: TempoTokens.Space.md) {
             sectionHeader(title: "Сколько времени?", value: "\(selectedDuration) минут")
-            HStack(spacing: TempoTokens.Space.xs) {
-                ForEach(durations, id: \.self) { minutes in
-                    Button {
-                        selectedDuration = minutes
-                    } label: {
-                        VStack(spacing: TempoTokens.Space.xxs) {
-                            Text(String(format: "%02d", minutes))
-                                .font(.title2.weight(.semibold).monospacedDigit())
-                            Text("минут")
-                                .font(.caption)
-                        }
-                        .frame(maxWidth: .infinity, minHeight: TempoTokens.Size.durationChoice)
-                        .foregroundStyle(selectedDuration == minutes ? Color.white : TempoTokens.ColorToken.carbon)
-                        .background(selectedDuration == minutes ? TempoTokens.ColorToken.carbon : Color.clear)
-                        .overlay {
-                            RoundedRectangle(cornerRadius: TempoTokens.Radius.small, style: .continuous)
-                                .stroke(TempoTokens.ColorToken.carbon.opacity(0.18))
-                        }
-                        .clipShape(RoundedRectangle(cornerRadius: TempoTokens.Radius.small, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("\(minutes) минут")
-                    .accessibilityAddTraits(selectedDuration == minutes ? .isSelected : [])
-                }
-            }
+            TempoDurationDial(
+                value: $selectedDuration,
+                allowedValues: DurationDialContract.allowedValues,
+                isEnabled: !isGenerating
+            )
         }
     }
 

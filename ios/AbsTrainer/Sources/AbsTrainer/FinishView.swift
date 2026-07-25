@@ -61,11 +61,20 @@ struct FinishView: View {
         .onAppear { finishTitleFocused = true }
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: TempoTokens.Space.xs) {
-                TempoPrimaryButton(title: "Повторить тренировку", symbol: "arrow.counterclockwise", action: onRepeat)
+                TempoPrimaryButton(
+                    title: "Повторить тренировку",
+                    symbol: "arrow.counterclockwise",
+                    layout: .balancedTrailingSymbol,
+                    action: onRepeat
+                )
+                .accessibilityIdentifier("finish.repeat")
                 Button("Настроить новую", action: onNewWorkout)
                     .font(.headline)
                     .foregroundStyle(TempoTokens.ColorToken.carbon)
-                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .accessibilityIdentifier("finish.newWorkout")
             }
             .padding(.horizontal, TempoTokens.Space.outer)
             .padding(.vertical, TempoTokens.Space.sm)

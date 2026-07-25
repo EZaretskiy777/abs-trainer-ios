@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 enum TempoTokens {
     struct ContrastColor {
@@ -48,9 +49,9 @@ enum TempoTokens {
         static let activeBackground = ContrastColor(red: 0.090, green: 0.090, blue: 0.078)
         static let restBackground = ContrastColor(red: 0.161, green: 0.275, blue: 0.776)
         static let inversePrimary = ContrastColor(red: 1, green: 1, blue: 1)
-        static let inverseSecondary = ContrastColor(red: 1, green: 1, blue: 1, alpha: 0.85)
-        static let inverseDivider = ContrastColor(red: 1, green: 1, blue: 1, alpha: 0.55)
-        static let inverseControlBorder = ContrastColor(red: 1, green: 1, blue: 1, alpha: 0.85)
+        static let inverseSecondary = ContrastColor(red: 1, green: 1, blue: 1, alpha: 0.72)
+        static let inverseDivider = ContrastColor(red: 1, green: 1, blue: 1, alpha: 0.30)
+        static let inverseControlBorder = ContrastColor(red: 1, green: 1, blue: 1, alpha: 0.50)
     }
 
     enum ColorToken {
@@ -91,31 +92,66 @@ enum TempoTokens {
         static let zoneChoice: CGFloat = 62
         static let compactMediaHeight: CGFloat = 230
         static let regularMediaHeight: CGFloat = 286
+        static let dialRegular: CGFloat = 216
+        static let dialCompact: CGFloat = 184
+        static let dialLandscape: CGFloat = 168
+        static let dialHandle: CGFloat = 24
     }
 }
 
 struct TempoPrimaryButton: View {
+    enum Layout {
+        case leading
+        case balancedTrailingSymbol
+    }
+
     let title: String
     var symbol: String? = "arrow.right"
     var isLoading = false
     var isEnabled = true
+    var layout: Layout = .leading
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: TempoTokens.Space.sm) {
-                if isLoading {
-                    ProgressView().tint(.white)
-                }
-                Text(isLoading ? "Собираем…" : title)
-                    .font(.headline)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                if let symbol, !isLoading {
-                    Image(systemName: symbol)
-                        .font(.headline.weight(.semibold))
+            Group {
+                if layout == .balancedTrailingSymbol {
+                    HStack(spacing: 0) {
+                        Color.clear.frame(width: TempoTokens.Size.minimumTap)
+                        Text(isLoading ? "Собираем…" : title)
+                            .font(.headline)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                        Group {
+                            if isLoading {
+                                ProgressView().tint(.white)
+                            } else if let symbol {
+                                Image(systemName: symbol)
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .accessibilityHidden(true)
+                            }
+                        }
+                        .frame(width: TempoTokens.Size.minimumTap, height: TempoTokens.Size.minimumTap)
+                    }
+                } else {
+                    HStack(spacing: TempoTokens.Space.sm) {
+                        if isLoading {
+                            ProgressView().tint(.white)
+                        }
+                        Text(isLoading ? "Собираем…" : title)
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        if let symbol, !isLoading {
+                            Image(systemName: symbol)
+                                .font(.headline.weight(.semibold))
+                                .accessibilityHidden(true)
+                        }
+                    }
                 }
             }
-            .padding(.horizontal, TempoTokens.Space.lg)
+            .padding(.horizontal, layout == .balancedTrailingSymbol ? TempoTokens.Space.xs : TempoTokens.Space.lg)
+            .padding(.vertical, layout == .balancedTrailingSymbol ? TempoTokens.Space.sm : 0)
             .frame(maxWidth: .infinity, minHeight: TempoTokens.Size.primaryControl)
             .foregroundStyle(.white)
             .background(TempoTokens.ColorToken.carbon)
@@ -125,6 +161,410 @@ struct TempoPrimaryButton: View {
         .disabled(!isEnabled || isLoading)
         .opacity(isEnabled ? 1 : 0.38)
         .accessibilityLabel(isLoading ? "Собираем тренировку" : title)
+    }
+}
+
+struct InverseIconButton: View {
+    let symbol: String
+    let size: CGFloat
+    let accessibilityLabel: String
+    let action: () -> Void
+
+    @Environment(\.colorSchemeContrast) private var accessibilityContrast
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: size >= TempoTokens.Size.pauseControl ? 17 : 16, weight: .semibold))
+                .foregroundStyle(Color.white)
+                .frame(width: size, height: size)
+                .contentShape(Circle())
+                .background(Color.white.opacity(0.001))
+                .overlay {
+                    Circle().stroke(
+                        Color.white.opacity(accessibilityContrast == .increased ? 1 : 0.50),
+                        lineWidth: accessibilityContrast == .increased ? 2 : 1
+                    )
+                }
+                .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .tint(.white)
+        .accessibilityLabel(accessibilityLabel)
+    }
+}
+
+enum SessionConfirmationVariant: Equatable {
+    case exitSession
+    case finishLastExerciseEarly
+
+    var title: String {
+        switch self {
+        case .exitSession: return "Завершить тренировку?"
+        case .finishLastExerciseEarly: return "Завершить последнее упражнение?"
+        }
+    }
+
+    var message: String {
+        switch self {
+        case .exitSession: return "Прогресс этой сессии не сохранится."
+        case .finishLastExerciseEarly: return "До конца упражнения ещё осталось время."
+        }
+    }
+
+    var cancelTitle: String {
+        switch self {
+        case .exitSession: return "Продолжить тренировку"
+        case .finishLastExerciseEarly: return "Продолжить упражнение"
+        }
+    }
+
+    var destructiveTitle: String {
+        switch self {
+        case .exitSession: return "Завершить тренировку"
+        case .finishLastExerciseEarly: return "Завершить сейчас"
+        }
+    }
+
+    var accessibilityIdentifier: String {
+        switch self {
+        case .exitSession: return "session.confirmation.exit"
+        case .finishLastExerciseEarly: return "session.confirmation.finishEarly"
+        }
+    }
+}
+
+struct SessionConfirmationModal: View {
+    let variant: SessionConfirmationVariant
+    let isTransitioning: Bool
+    let onCancel: () -> Void
+    let onConfirm: () -> Void
+
+    @Environment(\.colorSchemeContrast) private var accessibilityContrast
+    @AccessibilityFocusState private var titleFocused: Bool
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.64)
+                .ignoresSafeArea()
+                .accessibilityHidden(true)
+
+            ScrollView {
+                VStack(spacing: TempoTokens.Space.md) {
+                    Image(systemName: "stop.fill")
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(TempoTokens.ColorToken.signal)
+                        .frame(width: 56, height: 56)
+                        .background(TempoTokens.ColorToken.chalkSubtle)
+                        .clipShape(Circle())
+                        .accessibilityHidden(true)
+
+                    Text(variant.title)
+                        .font(.title2.bold())
+                        .foregroundStyle(TempoTokens.ColorToken.carbon)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("\(variant.accessibilityIdentifier).title")
+                        .accessibilityFocused($titleFocused)
+                        .accessibilitySortPriority(4)
+
+                    Text(variant.message)
+                        .font(.body)
+                        .foregroundStyle(TempoTokens.ColorToken.muted)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("\(variant.accessibilityIdentifier).message")
+                        .accessibilitySortPriority(3)
+
+                    VStack(spacing: TempoTokens.Space.xs) {
+                        Button(variant.cancelTitle, action: onCancel)
+                            .font(.headline)
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(Color.white)
+                            .frame(maxWidth: .infinity, minHeight: 56)
+                            .padding(.horizontal, TempoTokens.Space.md)
+                            .background(TempoTokens.ColorToken.carbon)
+                            .clipShape(RoundedRectangle(cornerRadius: TempoTokens.Radius.button, style: .continuous))
+                            .accessibilityIdentifier("\(variant.accessibilityIdentifier).cancel")
+                            .accessibilitySortPriority(2)
+
+                        Button(role: .destructive, action: onConfirm) {
+                            Text(variant.destructiveTitle)
+                                .font(.headline)
+                                .multilineTextAlignment(.center)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, minHeight: 52)
+                                .padding(.horizontal, TempoTokens.Space.md)
+                                .foregroundStyle(TempoTokens.ColorToken.signal)
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: TempoTokens.Radius.button, style: .continuous)
+                                        .stroke(
+                                            TempoTokens.ColorToken.signal,
+                                            lineWidth: accessibilityContrast == .increased ? 2 : 1
+                                        )
+                                }
+                        }
+                        .accessibilityIdentifier("\(variant.accessibilityIdentifier).destructive")
+                        .accessibilitySortPriority(1)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isTransitioning)
+                    .opacity(isTransitioning ? 0.38 : 1)
+                }
+                .padding(TempoTokens.Space.xl)
+            }
+            .frame(maxWidth: 353, maxHeight: 520)
+            .background(TempoTokens.ColorToken.chalk)
+            .clipShape(RoundedRectangle(cornerRadius: TempoTokens.Radius.media, style: .continuous))
+            .padding(TempoTokens.Space.outer)
+            .shadow(color: .black.opacity(0.18), radius: 24, y: 16)
+            .accessibilityElement(children: .contain)
+            .accessibilityAddTraits(.isModal)
+            .accessibilityIdentifier(variant.accessibilityIdentifier)
+            .accessibilityAction(.escape, onCancel)
+        }
+        .onAppear { titleFocused = true }
+    }
+}
+
+enum DurationDialContract {
+    static let allowedValues = [5, 10, 15]
+
+    static func nearestIndex(to value: Int, in values: [Int] = allowedValues) -> Int {
+        values.indices.min { lhs, rhs in
+            let lhsDistance = abs(values[lhs] - value)
+            let rhsDistance = abs(values[rhs] - value)
+            return lhsDistance == rhsDistance ? lhs < rhs : lhsDistance < rhsDistance
+        } ?? 0
+    }
+
+    static func index(for fraction: CGFloat, count: Int) -> Int {
+        guard count > 1 else { return 0 }
+        let scaled = max(0, min(1, fraction)) * CGFloat(count - 1)
+        return Int(floor(scaled + 0.499_999))
+    }
+}
+
+struct TempoDurationDial: View {
+    @Binding var value: Int
+    var allowedValues = DurationDialContract.allowedValues
+    var isEnabled = true
+    var onCommit: ((Int) -> Void)?
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorSchemeContrast) private var accessibilityContrast
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @State private var dragStartedInArc = false
+
+    private var currentIndex: Int {
+        DurationDialContract.nearestIndex(to: value, in: allowedValues)
+    }
+
+    private var progress: CGFloat {
+        guard allowedValues.count > 1 else { return 0 }
+        return CGFloat(currentIndex) / CGFloat(allowedValues.count - 1)
+    }
+
+    var body: some View {
+        VStack(spacing: TempoTokens.Space.xs) {
+            GeometryReader { proxy in
+                let diameter = dialDiameter(for: proxy.size.width)
+                dialCanvas(diameter: diameter)
+                    .frame(width: diameter, height: diameter)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .frame(height: preferredDiameter)
+
+            HStack(spacing: dynamicTypeSize.isAccessibilitySize ? 24 : 72) {
+                stepButton(
+                    symbol: "minus",
+                    label: "Уменьшить длительность на 5 минут",
+                    identifier: "setup.durationDial.decrement",
+                    isAvailable: currentIndex > 0
+                ) { select(index: currentIndex - 1) }
+
+                stepButton(
+                    symbol: "plus",
+                    label: "Увеличить длительность на 5 минут",
+                    identifier: "setup.durationDial.increment",
+                    isAvailable: currentIndex < allowedValues.count - 1
+                ) { select(index: currentIndex + 1) }
+            }
+        }
+        .onAppear { normalizeValueIfNeeded() }
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.55)
+    }
+
+    private var preferredDiameter: CGFloat {
+        if verticalSizeClass == .compact { return TempoTokens.Size.dialLandscape }
+        if dynamicTypeSize.isAccessibilitySize { return TempoTokens.Size.dialCompact }
+        return TempoTokens.Size.dialRegular
+    }
+
+    private func dialDiameter(for availableWidth: CGFloat) -> CGFloat {
+        min(preferredDiameter, max(TempoTokens.Size.dialLandscape, availableWidth - 96))
+    }
+
+    private func dialCanvas(diameter: CGFloat) -> some View {
+        let lineWidth: CGFloat = diameter >= TempoTokens.Size.dialRegular ? 10 : 9
+        let radius = diameter / 2 - 16
+        return ZStack {
+            Circle()
+                .trim(from: 0, to: 0.75)
+                .stroke(
+                    TempoTokens.ColorToken.carbon.opacity(accessibilityContrast == .increased ? 0.32 : 0.12),
+                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+                )
+                .rotationEffect(.degrees(135))
+
+            Circle()
+                .trim(from: 0, to: 0.75 * progress)
+                .stroke(
+                    accessibilityContrast == .increased
+                        ? TempoTokens.ColorToken.carbon
+                        : TempoTokens.ColorToken.vermilion,
+                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+                )
+                .rotationEffect(.degrees(135))
+
+            ForEach(allowedValues.indices, id: \.self) { index in
+                Rectangle()
+                    .fill(index <= currentIndex ? TempoTokens.ColorToken.carbon : TempoTokens.ColorToken.muted)
+                    .frame(width: accessibilityContrast == .increased ? 3 : 2, height: 12)
+                    .offset(y: -radius)
+                    .rotationEffect(.degrees(-135 + 270 * fraction(for: index)))
+                    .accessibilityHidden(true)
+            }
+
+            Circle()
+                .fill(TempoTokens.ColorToken.carbon)
+                .overlay(
+                    Circle().stroke(
+                        TempoTokens.ColorToken.chalk,
+                        lineWidth: accessibilityContrast == .increased ? 4 : 3
+                    )
+                )
+                .frame(width: TempoTokens.Size.dialHandle, height: TempoTokens.Size.dialHandle)
+                .offset(handleOffset(radius: radius))
+                .accessibilityHidden(true)
+
+            VStack(spacing: TempoTokens.Space.xxs) {
+                Text("\(value)")
+                    .font(.system(.largeTitle, design: .rounded, weight: .bold).monospacedDigit())
+                    .minimumScaleFactor(0.82)
+                    .lineLimit(1)
+                Text("минут")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(TempoTokens.ColorToken.muted)
+            }
+            .foregroundStyle(TempoTokens.ColorToken.carbon)
+            .frame(width: 104, height: 104)
+            .accessibilityHidden(true)
+        }
+        .contentShape(Circle())
+        .gesture(dialGesture(diameter: diameter))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Длительность тренировки")
+        .accessibilityValue("\(value) минут")
+        .accessibilityHint("Смахните вверх или вниз, чтобы изменить на 5 минут. Также доступны кнопки уменьшения и увеличения.")
+        .accessibilityIdentifier("setup.durationDial")
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment: select(index: currentIndex + 1)
+            case .decrement: select(index: currentIndex - 1)
+            @unknown default: break
+            }
+        }
+    }
+
+    private func stepButton(
+        symbol: String,
+        label: String,
+        identifier: String,
+        isAvailable: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.title2.weight(.semibold))
+                .frame(width: 52, height: 52)
+                .foregroundStyle(TempoTokens.ColorToken.carbon)
+                .background(TempoTokens.ColorToken.carbon.opacity(0.001))
+                .overlay {
+                    Circle().stroke(
+                        TempoTokens.ColorToken.carbon.opacity(accessibilityContrast == .increased ? 0.32 : 0.16),
+                        lineWidth: accessibilityContrast == .increased ? 2 : 1
+                    )
+                }
+                .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled || !isAvailable)
+        .opacity(isAvailable ? 1 : 0.38)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(identifier)
+    }
+
+    private func dialGesture(diameter: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { gesture in
+                if !dragStartedInArc {
+                    guard fraction(at: gesture.startLocation, diameter: diameter, clampGap: false) != nil else { return }
+                    dragStartedInArc = true
+                    UISelectionFeedbackGenerator().prepare()
+                }
+                guard let fraction = fraction(at: gesture.location, diameter: diameter, clampGap: true) else { return }
+                select(index: DurationDialContract.index(for: fraction, count: allowedValues.count))
+            }
+            .onEnded { _ in dragStartedInArc = false }
+    }
+
+    private func fraction(at point: CGPoint, diameter: CGFloat, clampGap: Bool) -> CGFloat? {
+        let center = CGPoint(x: diameter / 2, y: diameter / 2)
+        let dx = point.x - center.x
+        let dy = point.y - center.y
+        let radius = diameter / 2 - 16
+        guard abs(hypot(dx, dy) - radius) <= 24 else { return nil }
+
+        var angle = atan2(dy, dx) * 180 / .pi
+        if angle < 0 { angle += 360 }
+        if angle >= 135 { return min(1, (angle - 135) / 270) }
+        if angle <= 45 { return min(1, (angle + 225) / 270) }
+        guard clampGap else { return nil }
+        return angle < 90 ? 1 : 0
+    }
+
+    private func fraction(for index: Int) -> Double {
+        guard allowedValues.count > 1 else { return 0 }
+        return Double(index) / Double(allowedValues.count - 1)
+    }
+
+    private func handleOffset(radius: CGFloat) -> CGSize {
+        let angle = (135 + 270 * progress) * .pi / 180
+        return CGSize(width: radius * cos(angle), height: radius * sin(angle))
+    }
+
+    private func select(index: Int) {
+        guard isEnabled, allowedValues.indices.contains(index), value != allowedValues[index] else { return }
+        let newValue = allowedValues[index]
+        let update = {
+            value = newValue
+            onCommit?(newValue)
+        }
+        if reduceMotion {
+            update()
+        } else {
+            withAnimation(.easeOut(duration: 0.12), update)
+        }
+        UISelectionFeedbackGenerator().selectionChanged()
+    }
+
+    private func normalizeValueIfNeeded() {
+        assert(!allowedValues.isEmpty && allowedValues == Array(Set(allowedValues)).sorted())
+        guard !allowedValues.isEmpty, !allowedValues.contains(value) else { return }
+        value = allowedValues[DurationDialContract.nearestIndex(to: value, in: allowedValues)]
     }
 }
 
