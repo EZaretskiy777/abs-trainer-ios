@@ -358,12 +358,24 @@ final class AbsTrainerUITests: XCTestCase {
         in app: XCUIApplication,
         visibleFrame: CGRect
     ) {
-        for _ in 0..<4 where !controls.allSatisfy({ control in
-            control.isHittable
-                && control.frame.minY >= visibleFrame.minY - tolerance
-                && control.frame.maxY <= visibleFrame.maxY + tolerance
-        }) {
-            app.swipeUp()
+        for _ in 0..<8 {
+            let frames = controls.map(\.frame)
+            if controls.allSatisfy({ $0.isHittable }),
+               frames.allSatisfy({ frame in
+                   frame.minY >= visibleFrame.minY - tolerance
+                       && frame.maxY <= visibleFrame.maxY + tolerance
+               }) {
+                return
+            }
+
+            let shouldRevealTop = frames.contains { $0.minY < visibleFrame.minY - tolerance }
+            let startY: CGFloat = shouldRevealTop ? 0.42 : 0.62
+            let endY: CGFloat = shouldRevealTop ? 0.57 : 0.47
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: startY))
+                .press(
+                    forDuration: 0.05,
+                    thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: endY))
+                )
         }
     }
 
