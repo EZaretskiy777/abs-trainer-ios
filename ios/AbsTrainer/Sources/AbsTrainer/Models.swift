@@ -16,6 +16,15 @@ enum AbsZone: String, Codable, CaseIterable, Identifiable {
         case .full: return "Весь пресс"
         }
     }
+
+    var setupTitle: String {
+        switch self {
+        case .upper: return "Верхний пресс"
+        case .lower: return "Нижний пресс"
+        case .obliques: return "Косые мышцы"
+        case .full: return "Весь пресс"
+        }
+    }
 }
 
 enum Difficulty: String, Codable {
@@ -56,6 +65,10 @@ struct WorkoutPlan: Identifiable, Codable, Equatable {
     let items: [WorkoutItem]
 
     var totalDurationSec: Int {
-        items.reduce(0) { $0 + $1.durationSec + $1.restAfterSec }
+        guard !items.isEmpty else { return 0 }
+        return items.enumerated().reduce(0) { total, entry in
+            let (index, item) = entry
+            return total + item.durationSec + (index == items.count - 1 ? 0 : item.restAfterSec)
+        }
     }
 }

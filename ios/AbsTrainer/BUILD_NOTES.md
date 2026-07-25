@@ -1,22 +1,23 @@
 # BUILD_NOTES — запуск через Xcode
 
-## Быстрый путь для MVP
+## Xcode / Simulator
 
-1. Откройте Xcode на Mac.
-2. Создайте новый проект: `iOS App` → Product Name: `AbsTrainer` → Interface: `SwiftUI` → Language: `Swift`.
-3. Скопируйте файлы из `ios/AbsTrainer/Sources/AbsTrainer/` в созданный Xcode project.
-4. В Xcode откройте project settings → Signing & Capabilities.
-5. Team: выберите ваш Apple ID.
-6. Bundle Identifier: например `com.ezaretskiy.abstrainer`.
-7. Подключите iPhone кабелем.
-8. На iPhone включите Developer Mode, если Xcode попросит.
-9. Выберите iPhone как target device.
-10. Нажмите `Run`.
+1. Откройте `ios/AbsTrainer/AbsTrainer.xcodeproj`.
+2. Выберите shared scheme `AbsTrainer` и iOS Simulator с iOS 16 или новее.
+3. Выполните `Product → Build`, затем `Product → Test`.
 
-## Ограничение бесплатного Apple ID
+Воспроизводимые CLI-команды без signing:
 
-Сборка, установленная через бесплатный Apple ID, может перестать запускаться примерно через 7 дней. Для личного MVP это нормально: повторите запуск через Xcode.
+`xcodebuild -project ios/AbsTrainer/AbsTrainer.xcodeproj -scheme AbsTrainer -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO build`
 
-## Почему пока не `.xcodeproj`
+`xcodebuild -project ios/AbsTrainer/AbsTrainer.xcodeproj -scheme AbsTrainer -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO test`
 
-Hermes работает в Linux-среде без Xcode. Xcode project лучше создать на Mac, чтобы Xcode сам сгенерировал корректные signing/team настройки под ваш Apple ID.
+## Обязательная проверка перед merge
+
+1. `Product → Test` — все 10 тестов `WorkoutSessionStoreTests` и `WorkoutGeneratorTests` должны пройти.
+2. Пройти настройка → план → упражнение → отдых → результат; проверить pause/resume, skip rest, repeat и new workout.
+3. Проверить iPhone SE (3rd gen), iPhone 15 Pro и landscape: строки без clipping, controls доступны.
+4. Проверить Dynamic Type до Accessibility 3, VoiceOver order/labels, Reduce Motion и Increase Contrast.
+5. Убедиться, что системный chrome светлый на exercise/rest и тёмный на setup/plan/result.
+
+Для запуска на физическом iPhone отдельно настройте собственные Team, Bundle Identifier и provisioning в локальном Xcode. Production signing, archive и upload этим проектом не выполняются.

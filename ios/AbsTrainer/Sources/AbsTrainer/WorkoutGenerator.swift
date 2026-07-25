@@ -22,12 +22,10 @@ struct WorkoutGenerator {
         var items: [WorkoutItem] = []
         var total = 0
         var index = 0
-        var lastExerciseId: String?
 
         while total < targetSec - 30, !pool.isEmpty {
             let candidate = pool[index % pool.count]
             index += 1
-            guard candidate.id != lastExerciseId else { continue }
 
             let item = WorkoutItem(
                 id: UUID().uuidString,
@@ -39,7 +37,6 @@ struct WorkoutGenerator {
 
             items.append(item)
             total += item.durationSec + item.restAfterSec
-            lastExerciseId = candidate.id
         }
 
         return WorkoutPlan(

@@ -1,0 +1,5 @@
+.artifact-export/
+.derived-data/
+artifacts/
+DerivedData/
+*.xcresult
