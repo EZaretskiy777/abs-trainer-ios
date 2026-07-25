@@ -1,0 +1,148 @@
+name: Hermes Xcode CI
+
+on:
+  workflow_dispatch:
+    inputs:
+      task_id:
+        description: Hermes Kanban task ID
+        required: false
+        default: manual
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hermes-xcode-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  xcode-validation:
+    name: Xcode build and test
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      PROJECT: ios/AbsTrainer/AbsTrainer.xcodeproj
+      SCHEME: AbsTrainer
+      RESULT_BUNDLE: artifacts/TestResults.xcresult
+      DERIVED_DATA: .derived-data
+
+    steps:
+      - name: Checkout requested ref
+        uses: actions/checkout@v4
+
+      - name: Select Xcode and inspect environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest_xcode="$(find /Applications -maxdepth 1 -type d -name 'Xcode_26*.app' | sort -V | tail -1)"
+          if [[ -n "$latest_xcode" ]]; then
+            sudo xcode-select -s "$latest_xcode/Contents/Developer"
+          fi
+          xcodebuild -version
+          xcodebuild -showsdks
+          test -d "$PROJECT"
+          xcodebuild -list -project "$PROJECT"
+
+      - name: Select and boot an iPhone Simulator
+        id: simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          xcrun simctl list devices available -j > artifacts/simulators.json
+          udid="$(python3 - <<'PY'
+          import json
+          data = json.load(open('artifacts/simulators.json'))
+          candidates = []
+          for runtime, devices in data.get('devices', {}).items():
+              if 'iOS' not in runtime:
+                  continue
+              for device in devices:
+                  if device.get('isAvailable') and device.get('name', '').startswith('iPhone'):
+                      candidates.append((runtime, device.get('name', ''), device.get('udid', '')))
+          if not candidates:
+              raise SystemExit('No available iPhone Simulator')
+          preferred = [item for item in candidates if item[1] == 'iPhone 17']
+          selected = (preferred or sorted(candidates, reverse=True))[0]
+          print(selected[2])
+          PY
+          )"
+          test -n "$udid"
+          xcrun simctl boot "$udid" 2>/dev/null || true
+          xcrun simctl bootstatus "$udid" -b
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          xcrun simctl list devices | tee artifacts/simulator-selection.txt
+
+      - name: Build
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}" \
+            -derivedDataPath "$DERIVED_DATA" \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee artifacts/build.log
+
+      - name: Test
+        shell: bash
+        run: |
+          set -o pipefail
+          rm -rf "$RESULT_BUNDLE"
+          xcodebuild test \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}" \
+            -derivedDataPath "$DERIVED_DATA" \
+            -resultBundlePath "$RESULT_BUNDLE" \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee artifacts/test.log
+
+      - name: Export result metadata and attachments
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          if [[ -d "$RESULT_BUNDLE" ]]; then
+            xcrun xcresulttool get test-results summary \
+              --path "$RESULT_BUNDLE" --format json \
+              > artifacts/test-summary.json 2> artifacts/xcresult-summary.err
+            mkdir -p artifacts/screenshots
+            xcrun xcresulttool export attachments \
+              --path "$RESULT_BUNDLE" \
+              --output-path artifacts/screenshots \
+              > artifacts/xcresult-attachments.log 2>&1
+            ditto -c -k --sequesterRsrc --keepParent \
+              "$RESULT_BUNDLE" artifacts/TestResults.xcresult.zip
+          fi
+          git rev-parse HEAD > artifacts/commit.txt
+          printf 'task_id=%s\nref=%s\nrun_id=%s\n' \
+            '${{ inputs.task_id }}' '${{ github.ref_name }}' '${{ github.run_id }}' \
+            > artifacts/hermes-run.txt
+
+      - name: Publish job summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '## Hermes Xcode CI'
+            echo
+            echo "- Task: \`${{ inputs.task_id }}\`"
+            echo "- Ref: \`${{ github.ref_name }}\`"
+            echo "- Commit: \`${{ github.sha }}\`"
+            echo "- Runner: \`${{ runner.os }} / ${{ runner.arch }}\`"
+            echo "- Simulator: \`${{ steps.simulator.outputs.udid }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Xcode evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcode-evidence-${{ inputs.task_id }}-${{ github.run_id }}
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 6
+
