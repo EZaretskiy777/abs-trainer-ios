@@ -309,6 +309,7 @@ final class AbsTrainerUITests: XCTestCase {
             let countdownContext = app.staticTexts["session.active.timerContext"]
             XCTAssertTrue(countdown.waitForExistence(timeout: 2))
             XCTAssertTrue(countdownContext.waitForExistence(timeout: 2))
+            scrollIntoView([countdown, countdownContext], in: app, container: container)
             assertContained(countdown.frame, in: container.frame)
             assertContained(countdownContext.frame, in: container.frame)
             assertCountdownComposition(countdown.frame, countdownContext.frame)

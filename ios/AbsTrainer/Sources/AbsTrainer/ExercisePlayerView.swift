@@ -103,6 +103,7 @@ struct ExercisePlayerView: View {
             announceCurrentPhase()
         }
         .onReceive(Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()) { now in
+            guard !validationMode else { return }
             store.tick(at: now)
             announceCountdownIfNeeded()
         }
