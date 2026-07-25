@@ -367,34 +367,63 @@ struct TempoDurationDial: View {
     }
 
     var body: some View {
-        VStack(spacing: TempoTokens.Space.xs) {
-            GeometryReader { proxy in
-                let diameter = dialDiameter(for: proxy.size.width)
-                dialCanvas(diameter: diameter)
-                    .frame(width: diameter, height: diameter)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            .frame(height: preferredDiameter)
-
-            HStack(spacing: dynamicTypeSize.isAccessibilitySize ? 24 : 72) {
-                stepButton(
-                    symbol: "minus",
-                    label: "Уменьшить длительность на 5 минут",
-                    identifier: "setup.durationDial.decrement",
-                    isAvailable: currentIndex > 0
-                ) { select(index: currentIndex - 1) }
-
-                stepButton(
-                    symbol: "plus",
-                    label: "Увеличить длительность на 5 минут",
-                    identifier: "setup.durationDial.increment",
-                    isAvailable: currentIndex < allowedValues.count - 1
-                ) { select(index: currentIndex + 1) }
+        Group {
+            if verticalSizeClass == .compact {
+                HStack(spacing: TempoTokens.Space.md) {
+                    dialViewport
+                    stepControls(axis: .vertical)
+                }
+            } else {
+                VStack(spacing: TempoTokens.Space.xs) {
+                    dialViewport
+                    stepControls(axis: .horizontal)
+                }
             }
         }
+        .frame(maxWidth: .infinity)
         .onAppear { normalizeValueIfNeeded() }
         .disabled(!isEnabled)
         .opacity(isEnabled ? 1 : 0.55)
+    }
+
+    private var dialViewport: some View {
+        GeometryReader { proxy in
+            let diameter = dialDiameter(for: proxy.size.width)
+            dialCanvas(diameter: diameter)
+                .frame(width: diameter, height: diameter)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(height: preferredDiameter)
+    }
+
+    @ViewBuilder
+    private func stepControls(axis: Axis) -> some View {
+        let spacing: CGFloat = axis == .vertical
+            ? TempoTokens.Space.sm
+            : (dynamicTypeSize.isAccessibilitySize ? 24 : 72)
+
+        if axis == .vertical {
+            VStack(spacing: spacing) { stepButtons }
+        } else {
+            HStack(spacing: spacing) { stepButtons }
+        }
+    }
+
+    @ViewBuilder
+    private var stepButtons: some View {
+        stepButton(
+            symbol: "minus",
+            label: "Уменьшить длительность на 5 минут",
+            identifier: "setup.durationDial.decrement",
+            isAvailable: currentIndex > 0
+        ) { select(index: currentIndex - 1) }
+
+        stepButton(
+            symbol: "plus",
+            label: "Увеличить длительность на 5 минут",
+            identifier: "setup.durationDial.increment",
+            isAvailable: currentIndex < allowedValues.count - 1
+        ) { select(index: currentIndex + 1) }
     }
 
     private var preferredDiameter: CGFloat {

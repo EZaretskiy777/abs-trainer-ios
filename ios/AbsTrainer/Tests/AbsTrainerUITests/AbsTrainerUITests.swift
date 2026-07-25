@@ -116,10 +116,10 @@ final class AbsTrainerUITests: XCTestCase {
         assertFiveStateGeometry(in: app, container: viewport, screenshotPrefix: "ax3-portrait")
 
         app.terminate()
+        XCUIDevice.shared.orientation = .landscapeLeft
         let landscapeApp = launchApp(
             contentSizeCategory: "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge"
         )
-        XCUIDevice.shared.orientation = .landscapeLeft
         let window = landscapeApp.windows.firstMatch
         XCTAssertTrue(window.waitForExistence(timeout: 5))
         XCTAssertGreaterThan(window.frame.width, window.frame.height)
