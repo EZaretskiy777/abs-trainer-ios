@@ -106,6 +106,22 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
+    func testCriticalStatesFitIPhone17ProMaxPortraitEquivalent() throws {
+        let size = CGSize(width: 440, height: 956)
+        let app = launchApp(viewport: size)
+        let window = app.windows.firstMatch
+        let viewport = app.descendants(matching: .any)["validation.viewport"].firstMatch
+
+        XCTAssertTrue(window.waitForExistence(timeout: 5))
+        XCTAssertEqual(window.frame.width, size.width, accuracy: tolerance)
+        XCTAssertEqual(window.frame.height, size.height, accuracy: tolerance)
+        XCTAssertTrue(viewport.waitForExistence(timeout: 5))
+        XCTAssertEqual(viewport.frame.width, size.width, accuracy: tolerance)
+        XCTAssertEqual(viewport.frame.height, size.height, accuracy: tolerance)
+        assertFiveStateGeometry(in: app, container: viewport, screenshotPrefix: "iphone-17-pro-max-portrait")
+    }
+
+    @MainActor
     func testAccessibility3PortraitAndLandscapeGeometry() throws {
         let app = launchApp(
             viewport: CGSize(width: 393, height: 852),
@@ -179,6 +195,55 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
+    func testDurationDialTapAndDragSnapToAllowedValues() throws {
+        let app = launchApp(viewport: CGSize(width: 440, height: 956))
+        let dial = app.descendants(matching: .any)["setup.durationDial"]
+        XCTAssertTrue(dial.waitForExistence(timeout: 5))
+
+        dialPoint(.minimum, in: dial).tap()
+        XCTAssertEqual(dial.value as? String, "5 минут")
+        dialPoint(.midpoint, in: dial).tap()
+        XCTAssertEqual(dial.value as? String, "10 минут")
+        dialPoint(.maximum, in: dial).tap()
+        XCTAssertEqual(dial.value as? String, "15 минут")
+        attachScreenshot(named: "duration-dial-tap-maximum")
+
+        dialPoint(.maximum, in: dial).press(
+            forDuration: 0.1,
+            thenDragTo: dialPoint(.minimum, in: dial)
+        )
+        XCTAssertEqual(dial.value as? String, "5 минут")
+        attachScreenshot(named: "duration-dial-drag-minimum")
+    }
+
+    @MainActor
+    func testDurationDialAdjustableIncrementAndDecrementPreserveContract() throws {
+        let app = launchApp(viewport: CGSize(width: 440, height: 956))
+        let dial = app.descendants(matching: .any)["setup.durationDial"]
+        let increment = app.buttons["validation.durationDial.adjustable.increment"]
+        let decrement = app.buttons["validation.durationDial.adjustable.decrement"]
+
+        XCTAssertTrue(dial.waitForExistence(timeout: 5))
+        XCTAssertTrue(increment.waitForExistence(timeout: 2))
+        XCTAssertTrue(decrement.waitForExistence(timeout: 2))
+        XCTAssertTrue(increment.isHittable)
+        XCTAssertTrue(decrement.isHittable)
+        XCTAssertEqual(dial.value as? String, "10 минут")
+
+        increment.tap()
+        XCTAssertEqual(dial.value as? String, "15 минут")
+        increment.tap()
+        XCTAssertEqual(dial.value as? String, "15 минут")
+        decrement.tap()
+        XCTAssertEqual(dial.value as? String, "10 минут")
+        decrement.tap()
+        XCTAssertEqual(dial.value as? String, "5 минут")
+        decrement.tap()
+        XCTAssertEqual(dial.value as? String, "5 минут")
+        attachScreenshot(named: "duration-dial-adjustable-minimum")
+    }
+
+    @MainActor
     func testExitConfirmationUsesSafeDefaultAndRestoresOpenerFocus() throws {
         let app = launchApp(viewport: CGSize(width: 393, height: 852))
         navigateToSession(in: app)
@@ -242,6 +307,24 @@ final class AbsTrainerUITests: XCTestCase {
 
     private func setupButton(in app: XCUIApplication) -> XCUIElement {
         app.buttons["Собрать тренировку"]
+    }
+
+    private enum DialStop {
+        case minimum
+        case midpoint
+        case maximum
+
+        var offset: CGVector {
+            switch self {
+            case .minimum: CGVector(dx: 0.20, dy: 0.80)
+            case .midpoint: CGVector(dx: 0.50, dy: 0.08)
+            case .maximum: CGVector(dx: 0.80, dy: 0.80)
+            }
+        }
+    }
+
+    private func dialPoint(_ stop: DialStop, in dial: XCUIElement) -> XCUICoordinate {
+        dial.coordinate(withNormalizedOffset: stop.offset)
     }
 
     @MainActor

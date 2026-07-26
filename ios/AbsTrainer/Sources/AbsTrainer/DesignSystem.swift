@@ -357,6 +357,14 @@ struct TempoDurationDial: View {
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @State private var dragStartedInArc = false
 
+    private var validationMode: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-ValidationMode")
+        #else
+        false
+        #endif
+    }
+
     private var currentIndex: Int {
         DurationDialContract.nearestIndex(to: value, in: allowedValues)
     }
@@ -381,6 +389,11 @@ struct TempoDurationDial: View {
             }
         }
         .frame(maxWidth: .infinity)
+        .overlay(alignment: .topLeading) {
+            if validationMode {
+                validationAdjustmentControls
+            }
+        }
         .onAppear { normalizeValueIfNeeded() }
         .disabled(!isEnabled)
         .opacity(isEnabled ? 1 : 0.55)
@@ -501,11 +514,42 @@ struct TempoDurationDial: View {
         .accessibilityIdentifier("setup.durationDial")
         .accessibilityAdjustableAction { direction in
             switch direction {
-            case .increment: select(index: currentIndex + 1)
-            case .decrement: select(index: currentIndex - 1)
+            case .increment: adjust(.increment)
+            case .decrement: adjust(.decrement)
             @unknown default: break
             }
         }
+    }
+
+    private enum Adjustment {
+        case decrement
+        case increment
+    }
+
+    private var validationAdjustmentControls: some View {
+        HStack(spacing: 0) {
+            validationAdjustmentButton(
+                .decrement,
+                identifier: "validation.durationDial.adjustable.decrement"
+            )
+            validationAdjustmentButton(
+                .increment,
+                identifier: "validation.durationDial.adjustable.increment"
+            )
+        }
+    }
+
+    private func validationAdjustmentButton(
+        _ adjustment: Adjustment,
+        identifier: String
+    ) -> some View {
+        Button { adjust(adjustment) } label: {
+            Color.black.opacity(0.001)
+                .frame(width: 44, height: 44)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Validation adjustable action")
+        .accessibilityIdentifier(identifier)
     }
 
     private func stepButton(
@@ -588,6 +632,13 @@ struct TempoDurationDial: View {
             withAnimation(.easeOut(duration: 0.12), update)
         }
         UISelectionFeedbackGenerator().selectionChanged()
+    }
+
+    private func adjust(_ adjustment: Adjustment) {
+        switch adjustment {
+        case .decrement: select(index: currentIndex - 1)
+        case .increment: select(index: currentIndex + 1)
+        }
     }
 
     private func normalizeValueIfNeeded() {
