@@ -332,10 +332,16 @@ enum DurationDialContract {
 
     static func nearestIndex(to value: Int, in values: [Int] = allowedValues) -> Int {
         values.indices.min { lhs, rhs in
-            let lhsDistance = abs(values[lhs] - value)
-            let rhsDistance = abs(values[rhs] - value)
+            let lhsDistance = distance(from: value, to: values[lhs])
+            let rhsDistance = distance(from: value, to: values[rhs])
             return lhsDistance == rhsDistance ? lhs < rhs : lhsDistance < rhsDistance
         } ?? 0
+    }
+
+    private static func distance(from value: Int, to candidate: Int) -> UInt {
+        if value >= candidate { return UInt(value - candidate) }
+        if value >= 0 { return UInt(candidate - value) }
+        return value.magnitude + UInt(candidate)
     }
 
     static func index(for fraction: CGFloat, count: Int) -> Int {
@@ -652,6 +658,8 @@ struct TempoChoiceCell: View {
     let title: String
     let isSelected: Bool
     var selectedColor = TempoTokens.ColorToken.carbon
+    var isEnabled = true
+    var accessibilityIdentifier: String?
     let action: () -> Void
 
     var body: some View {
@@ -686,8 +694,11 @@ struct TempoChoiceCell: View {
             .clipShape(RoundedRectangle(cornerRadius: TempoTokens.Radius.small, style: .continuous))
         }
         .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.55)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityValue(isSelected ? "Выбрано" : "Не выбрано")
+        .accessibilityIdentifier(accessibilityIdentifier ?? "")
     }
 }
 

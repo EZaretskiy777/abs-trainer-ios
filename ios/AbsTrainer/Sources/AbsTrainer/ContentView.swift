@@ -9,9 +9,11 @@ struct ContentView: View {
 
     @State private var selectedDuration = 10
     @State private var selectedZones: Set<AbsZone> = [.full]
+    @State private var selectedIntensity: WorkoutIntensity = .balanced
     @State private var plan: WorkoutPlan?
     @State private var path: [Route] = []
     @State private var isGenerating = false
+    @State private var generationError: String?
     @ScaledMetric(relativeTo: .largeTitle) private var displayTitleSize = 42
     @AccessibilityFocusState private var setupTitleFocused: Bool
     @Environment(\.verticalSizeClass) private var verticalSizeClass
@@ -78,6 +80,7 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: TempoTokens.Space.xxl) {
                     durationPicker
                     zonePicker
+                    intensityPicker
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -86,6 +89,7 @@ struct ContentView: View {
                 header
                 durationPicker
                 zonePicker
+                intensityPicker
             }
         }
     }
@@ -129,9 +133,49 @@ struct ContentView: View {
                         title: zone.setupTitle,
                         isSelected: selectedZones.contains(zone),
                         selectedColor: zone == .full ? TempoTokens.ColorToken.ultramarine : TempoTokens.ColorToken.carbon,
+                        isEnabled: !isGenerating,
+                        accessibilityIdentifier: "setup.zone.\(zone.rawValue)",
                         action: { toggle(zone) }
                     )
                 }
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Зона нагрузки")
+        .accessibilityHint("Можно выбрать несколько зон. Весь пресс отменяет выбор отдельных зон.")
+    }
+
+    private var intensityPicker: some View {
+        VStack(alignment: .leading, spacing: TempoTokens.Space.md) {
+            sectionHeader(title: "Интенсивность упражнений", value: "Один вариант")
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: TempoTokens.Space.xs) { intensityChoices }
+                VStack(spacing: TempoTokens.Space.xs) { intensityChoices }
+            }
+            if let generationError {
+                Text(generationError)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(TempoTokens.ColorToken.signal)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("setup.generationError")
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Интенсивность упражнений")
+        .accessibilityHint("Выберите один вариант. Интенсивность меняет сложность упражнений.")
+    }
+
+    @ViewBuilder
+    private var intensityChoices: some View {
+        ForEach(WorkoutIntensity.allCases) { intensity in
+            TempoChoiceCell(
+                title: intensity.title,
+                isSelected: selectedIntensity == intensity,
+                isEnabled: !isGenerating,
+                accessibilityIdentifier: "setup.intensity.\(intensity.rawValue)"
+            ) {
+                selectedIntensity = intensity
+                generationError = nil
             }
         }
     }
@@ -187,13 +231,25 @@ struct ContentView: View {
     private func generatePlan() {
         guard !isGenerating else { return }
         isGenerating = true
+        generationError = nil
+        let setup = WorkoutSetup(
+            targetDurationMin: selectedDuration,
+            selectedZones: selectedZones,
+            intensity: selectedIntensity
+        ).normalized
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 350_000_000)
-            plan = generator.generate(
-                targetDurationMin: selectedDuration,
-                selectedZones: Array(selectedZones)
+            let generatedPlan = generator.generate(
+                targetDurationMin: setup.targetDurationMin,
+                selectedZones: setup.canonicalZones,
+                intensity: setup.intensity
             )
             isGenerating = false
+            guard !generatedPlan.items.isEmpty else {
+                generationError = "Не удалось собрать тренировку. Попробуйте другой вариант."
+                return
+            }
+            plan = generatedPlan
             path.append(.plan)
         }
     }

@@ -17,18 +17,23 @@ final class AbsTrainerUITests: XCTestCase {
     func testFiveStateFlowCapturesReferenceScreens() throws {
         let app = launchApp(viewport: CGSize(width: 393, height: 852))
 
-        attachScreenshot(named: "01-setup-reference")
-        navigateToSession(in: app, planScreenshotName: "02-plan-reference")
+        attachScreenshot(named: "01-setup")
+        navigateToSession(in: app, planScreenshotName: "plan-transition")
 
         XCTAssertTrue(app.buttons["Поставить тренировку на паузу"].waitForExistence(timeout: 5))
-        attachScreenshot(named: "03-active-reference")
+        attachScreenshot(named: "02-active")
+        app.buttons["session.exit"].tap()
+        let exitConfirmation = app.descendants(matching: .any)["session.confirmation.exit"]
+        XCTAssertTrue(exitConfirmation.waitForExistence(timeout: 3))
+        attachScreenshot(named: "05-confirmation")
+        app.buttons["session.confirmation.exit.cancel"].tap()
 
         var capturedRest = false
         for _ in 0..<100 {
             let skipRest = app.buttons["Пропустить отдых"]
             if skipRest.waitForExistence(timeout: 1) {
                 if !capturedRest {
-                    attachScreenshot(named: "04-rest-reference")
+                    attachScreenshot(named: "03-rest")
                     capturedRest = true
                 }
                 skipRest.tap()
@@ -51,7 +56,52 @@ final class AbsTrainerUITests: XCTestCase {
 
         XCTAssertTrue(capturedRest)
         XCTAssertTrue(app.staticTexts["Темп\nвыдержан."].waitForExistence(timeout: 5))
-        attachScreenshot(named: "05-finish-reference")
+        attachScreenshot(named: "04-finish")
+    }
+
+    @MainActor
+    func testSetupFocusIntensityAndPlanSnapshotContract() throws {
+        let app = launchApp(viewport: CGSize(width: 440, height: 956))
+        let full = app.buttons["setup.zone.full"]
+        let upper = app.buttons["setup.zone.upper"]
+        let lower = app.buttons["setup.zone.lower"]
+        let light = app.buttons["setup.intensity.light"]
+        let balanced = app.buttons["setup.intensity.balanced"]
+        let high = app.buttons["setup.intensity.high"]
+        let setup = app.buttons["Собрать тренировку"]
+
+        XCTAssertTrue(full.waitForExistence(timeout: 5))
+        XCTAssertEqual(full.value as? String, "Выбрано")
+        XCTAssertTrue(balanced.waitForExistence(timeout: 5))
+        XCTAssertEqual(balanced.value as? String, "Выбрано")
+        XCTAssertEqual(light.value as? String, "Не выбрано")
+
+        upper.tap()
+        lower.tap()
+        XCTAssertEqual(full.value as? String, "Не выбрано")
+        XCTAssertEqual(upper.value as? String, "Выбрано")
+        XCTAssertEqual(lower.value as? String, "Выбрано")
+
+        let visibleFrame = visibleFrame(above: setup, in: app.windows.firstMatch)
+        scrollIntoView([high], in: app, visibleFrame: visibleFrame)
+        high.tap()
+        XCTAssertEqual(high.value as? String, "Выбрано")
+        XCTAssertEqual(balanced.value as? String, "Не выбрано")
+        attachScreenshot(named: "01-setup-intensity-selection")
+        setup.tap()
+
+        let summary = app.descendants(matching: .any)["plan.summary"]
+        XCTAssertTrue(summary.waitForExistence(timeout: 5))
+        XCTAssertTrue(summary.label.contains("10 минут"))
+        XCTAssertTrue(summary.label.contains("верхний"))
+        XCTAssertTrue(summary.label.contains("нижний"))
+        XCTAssertTrue(summary.label.contains("высокая интенсивность"))
+
+        app.buttons["Назад к настройке"].tap()
+        XCTAssertTrue(high.waitForExistence(timeout: 3))
+        XCTAssertEqual(high.value as? String, "Выбрано")
+        XCTAssertEqual(upper.value as? String, "Выбрано")
+        XCTAssertEqual(lower.value as? String, "Выбрано")
     }
 
     @MainActor

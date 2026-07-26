@@ -88,6 +88,7 @@ final class WorkoutSessionStoreTests: XCTestCase {
             id: "test-plan",
             targetDurationMin: 5,
             selectedZones: [.full],
+            intensity: .balanced,
             items: [
                 WorkoutItem(
                     id: "first",
@@ -170,6 +171,8 @@ final class DurationDialContractTests: XCTestCase {
         XCTAssertEqual(DurationDialContract.nearestIndex(to: 8), 1)
         XCTAssertEqual(DurationDialContract.nearestIndex(to: 12), 1)
         XCTAssertEqual(DurationDialContract.nearestIndex(to: 13), 2)
+        XCTAssertEqual(DurationDialContract.nearestIndex(to: Int.min), 0)
+        XCTAssertEqual(DurationDialContract.nearestIndex(to: Int.max), 2)
     }
 
     func testSnapFractionsStayWithinThreeStops() {

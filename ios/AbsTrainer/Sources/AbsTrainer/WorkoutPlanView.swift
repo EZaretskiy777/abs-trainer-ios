@@ -69,17 +69,20 @@ struct WorkoutPlanView: View {
                 HStack(spacing: TempoTokens.Space.xs) {
                     metaChip("\(plan.items.count) упражнений")
                     metaChip("\(max(plan.items.count - 1, 0)) пауз")
-                    metaChip("Начальный")
+                    metaChip(plan.intensity.title)
                 }
                 VStack(alignment: .leading, spacing: TempoTokens.Space.xs) {
                     metaChip("\(plan.items.count) упражнений")
                     metaChip("\(max(plan.items.count - 1, 0)) пауз")
-                    metaChip("Начальный")
+                    metaChip(plan.intensity.title)
                 }
             }
             TempoRail(total: max(plan.items.count * 2 - 1, 1), current: nil)
                 .padding(.top, TempoTokens.Space.xs)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(plan.targetDurationMin) минут, \(zonesTitle.lowercased()), \(plan.intensity.planTitle)")
+        .accessibilityIdentifier("plan.summary")
     }
 
     private func metaChip(_ title: String) -> some View {
