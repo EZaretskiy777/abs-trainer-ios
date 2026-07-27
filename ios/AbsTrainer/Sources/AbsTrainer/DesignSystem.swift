@@ -117,7 +117,10 @@ struct TempoPrimaryButton: View {
             Group {
                 if layout == .balancedTrailingSymbol {
                     HStack(spacing: 0) {
-                        Color.clear.frame(width: TempoTokens.Size.minimumTap)
+                        Color.clear.frame(
+                            width: TempoTokens.Size.minimumTap,
+                            height: TempoTokens.Size.minimumTap
+                        )
                         Text(isLoading ? "Собираем…" : title)
                             .font(.headline)
                             .multilineTextAlignment(.center)
