@@ -68,12 +68,16 @@ struct FinishView: View {
                     action: onRepeat
                 )
                 .accessibilityIdentifier("finish.repeat")
-                Button("Настроить новую", action: onNewWorkout)
-                    .font(.headline)
-                    .foregroundStyle(TempoTokens.ColorToken.carbon)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, minHeight: 48)
+                Button(action: onNewWorkout) {
+                    Text("Настроить новую")
+                        .font(.headline)
+                        .foregroundStyle(TempoTokens.ColorToken.carbon)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                        .contentShape(Rectangle())
+                }
+                    .buttonStyle(.plain)
                     .accessibilityIdentifier("finish.newWorkout")
             }
             .padding(.horizontal, TempoTokens.Space.outer)
