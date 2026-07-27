@@ -3,6 +3,7 @@ import XCTest
 
 final class AbsTrainerUITests: XCTestCase {
     private let tolerance: CGFloat = 2
+    private let maximumFinishPrimaryHeight: CGFloat = 96
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -465,11 +466,37 @@ final class AbsTrainerUITests: XCTestCase {
 
         XCTAssertTrue(capturedActive)
         XCTAssertTrue(capturedRest)
-        XCTAssertTrue(app.staticTexts["Темп\nвыдержан."].waitForExistence(timeout: 5))
         let repeatWorkout = app.buttons["Повторить тренировку"]
         let newWorkout = app.buttons["Настроить новую"]
+        XCTAssertTrue(repeatWorkout.waitForExistence(timeout: 5))
+        XCTAssertTrue(newWorkout.waitForExistence(timeout: 5))
         assertCriticalControls([repeatWorkout, newWorkout], in: container)
+        XCTAssertGreaterThanOrEqual(repeatWorkout.frame.height, 58)
+        XCTAssertLessThanOrEqual(
+            repeatWorkout.frame.height,
+            maximumFinishPrimaryHeight,
+            "Finish primary action must remain compact when the balanced symbol layout is used"
+        )
+        XCTAssertEqual(repeatWorkout.frame.minX, newWorkout.frame.minX, accuracy: tolerance)
+        XCTAssertEqual(repeatWorkout.frame.maxX, newWorkout.frame.maxX, accuracy: tolerance)
+        XCTAssertEqual(repeatWorkout.frame.midX, newWorkout.frame.midX, accuracy: tolerance)
         assertNonOverlapping(repeatWorkout.frame, newWorkout.frame)
+
+        let finishVisibleFrame = visibleFrame(above: repeatWorkout, in: container)
+        let finishHierarchy = [
+            app.staticTexts["Тренировка завершена"],
+            app.staticTexts["Темп\nвыдержан."],
+            app.staticTexts["Все упражнения выполнены. Результат сохранён только на этом устройстве."],
+            app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'фактическое время'")).firstMatch,
+            app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'упражнений'")).firstMatch
+        ]
+        for element in finishHierarchy {
+            XCTAssertTrue(element.waitForExistence(timeout: 2), "Required Finish content must exist")
+            scrollIntoView([element], in: app, visibleFrame: finishVisibleFrame)
+            XCTAssertTrue(element.isHittable, "Required Finish content must be visible and reachable")
+            XCTAssertFalse(element.frame.isEmpty, "Required Finish content must have a non-empty frame")
+            assertContained(element.frame, in: finishVisibleFrame)
+        }
         attachScreenshot(named: "\(screenshotPrefix)-05-finish")
     }
 
