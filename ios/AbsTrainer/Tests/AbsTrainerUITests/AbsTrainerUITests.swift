@@ -416,9 +416,11 @@ final class AbsTrainerUITests: XCTestCase {
         let motion = app.descendants(matching: .any)["exerciseDetail.motion"]
         XCTAssertTrue(motion.waitForExistence(timeout: 3))
         XCTAssertEqual(motion.value as? String, "Статичная демонстрация")
+        let detailScroll = app.scrollViews["exerciseDetail.screen.crunch"]
+        XCTAssertTrue(detailScroll.waitForExistence(timeout: 3))
         let disclaimer = app.descendants(matching: .any)["exerciseDetail.disclaimer"]
         for _ in 0..<8 where !disclaimer.isHittable {
-            app.swipeUp()
+            detailScroll.swipeUp()
         }
         XCTAssertTrue(disclaimer.exists)
         XCTAssertTrue(disclaimer.isHittable)
