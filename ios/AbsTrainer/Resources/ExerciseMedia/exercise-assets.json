@@ -1,0 +1,428 @@
+{
+  "schema_version": 1,
+  "catalog": "ExerciseCatalog.starter",
+  "export_profile": "abs-exercise-square-h264-v1",
+  "generated_at": "2026-07-27T15:03:04Z",
+  "assets": [
+    {
+      "exercise_id": "bicycle_twist",
+      "catalog_media_name": "exercise_bicycle_twist_v1",
+      "video": {
+        "path": "design/exercise-library/exports/exercise_bicycle_twist_v1.mp4",
+        "container": "mp4",
+        "codec": "h264",
+        "pixel_format": "yuv420p",
+        "width_px": 720,
+        "height_px": 720,
+        "fps": 30,
+        "duration_ms": 4000,
+        "frame_count": 120,
+        "has_audio": false,
+        "loop": "seamless",
+        "size_bytes": 44043,
+        "sha256": "6622ce14df88040e3940b176ddf1b2797faa1cf950ff10275d682b0cba706896"
+      },
+      "poster": {
+        "path": "design/exercise-library/exports/exercise_bicycle_twist_poster_v1.jpg",
+        "width_px": 720,
+        "height_px": 720,
+        "color_space": "sRGB",
+        "size_bytes": 16741,
+        "sha256": "1143be666d6ae803a57a652bd22986d75be42772e29cd3677c8d875a80ae6f7f"
+      },
+      "source": {
+        "master_path": "design/exercise-library/source/render_exercise_library.py",
+        "creator_role": "designer",
+        "provenance": "original_in_house",
+        "license": "owned_original_work",
+        "third_party_inputs": [],
+        "source_notes": "Original geometric neutral mannequin, camera field and per-exercise motion authored from scratch for ABS Trainer; system/locally staged fonts affect preview labels only."
+      },
+      "qa": {
+        "opens": true,
+        "visual_review": "pass_designer",
+        "seam_review": "pass_automated_and_designer",
+        "storyboard_review": "pass_designer_pending_domain_human",
+        "reduce_motion_poster_review": "pass"
+      }
+    },
+    {
+      "exercise_id": "crunch",
+      "catalog_media_name": "exercise_crunch_v1",
+      "video": {
+        "path": "design/exercise-library/exports/exercise_crunch_v1.mp4",
+        "container": "mp4",
+        "codec": "h264",
+        "pixel_format": "yuv420p",
+        "width_px": 720,
+        "height_px": 720,
+        "fps": 30,
+        "duration_ms": 4000,
+        "frame_count": 120,
+        "has_audio": false,
+        "loop": "seamless",
+        "size_bytes": 27078,
+        "sha256": "b90f6d70038b5f50fb7386f880bce8ca98740edfa9c08be28b49c71db8c2036d"
+      },
+      "poster": {
+        "path": "design/exercise-library/exports/exercise_crunch_poster_v1.jpg",
+        "width_px": 720,
+        "height_px": 720,
+        "color_space": "sRGB",
+        "size_bytes": 18245,
+        "sha256": "4bbbc83d08e3ff3ce05c841c56c336de6b0d900c5a17aa6b94ca7cf519df97ae"
+      },
+      "source": {
+        "master_path": "design/exercise-library/source/render_exercise_library.py",
+        "creator_role": "designer",
+        "provenance": "original_in_house",
+        "license": "owned_original_work",
+        "third_party_inputs": [],
+        "source_notes": "Original geometric neutral mannequin, camera field and per-exercise motion authored from scratch for ABS Trainer; system/locally staged fonts affect preview labels only."
+      },
+      "qa": {
+        "opens": true,
+        "visual_review": "pass_designer",
+        "seam_review": "pass_automated_and_designer",
+        "storyboard_review": "pass_designer_pending_domain_human",
+        "reduce_motion_poster_review": "pass"
+      }
+    },
+    {
+      "exercise_id": "dead_bug",
+      "catalog_media_name": "exercise_dead_bug_v1",
+      "video": {
+        "path": "design/exercise-library/exports/exercise_dead_bug_v1.mp4",
+        "container": "mp4",
+        "codec": "h264",
+        "pixel_format": "yuv420p",
+        "width_px": 720,
+        "height_px": 720,
+        "fps": 30,
+        "duration_ms": 4000,
+        "frame_count": 120,
+        "has_audio": false,
+        "loop": "seamless",
+        "size_bytes": 39427,
+        "sha256": "a769f5668b07e7e7fcbcc6932d6627c3af19e731ec44cfcb6eecfa2be29d8297"
+      },
+      "poster": {
+        "path": "design/exercise-library/exports/exercise_dead_bug_poster_v1.jpg",
+        "width_px": 720,
+        "height_px": 720,
+        "color_space": "sRGB",
+        "size_bytes": 21194,
+        "sha256": "f3e0aaeea1e970827ea4fceaffff5ff1e01040ba032c2fef63e3cad6b8542882"
+      },
+      "source": {
+        "master_path": "design/exercise-library/source/render_exercise_library.py",
+        "creator_role": "designer",
+        "provenance": "original_in_house",
+        "license": "owned_original_work",
+        "third_party_inputs": [],
+        "source_notes": "Original geometric neutral mannequin, camera field and per-exercise motion authored from scratch for ABS Trainer; system/locally staged fonts affect preview labels only."
+      },
+      "qa": {
+        "opens": true,
+        "visual_review": "pass_designer",
+        "seam_review": "pass_automated_and_designer",
+        "storyboard_review": "pass_designer_pending_domain_human",
+        "reduce_motion_poster_review": "pass"
+      }
+    },
+    {
+      "exercise_id": "hollow_hold",
+      "catalog_media_name": "exercise_hollow_hold_v1",
+      "video": {
+        "path": "design/exercise-library/exports/exercise_hollow_hold_v1.mp4",
+        "container": "mp4",
+        "codec": "h264",
+        "pixel_format": "yuv420p",
+        "width_px": 720,
+        "height_px": 720,
+        "fps": 30,
+        "duration_ms": 4000,
+        "frame_count": 120,
+        "has_audio": false,
+        "loop": "seamless",
+        "size_bytes": 25629,
+        "sha256": "23c13a498ad7d7c0d59ee08148bd7fb13e22d7fd092e40a3460aad7c3765881a"
+      },
+      "poster": {
+        "path": "design/exercise-library/exports/exercise_hollow_hold_poster_v1.jpg",
+        "width_px": 720,
+        "height_px": 720,
+        "color_space": "sRGB",
+        "size_bytes": 17818,
+        "sha256": "c78e520dec9a7df79659e004fd758033057bbdc2e9c69fc7706802a0fbebfef2"
+      },
+      "source": {
+        "master_path": "design/exercise-library/source/render_exercise_library.py",
+        "creator_role": "designer",
+        "provenance": "original_in_house",
+        "license": "owned_original_work",
+        "third_party_inputs": [],
+        "source_notes": "Original geometric neutral mannequin, camera field and per-exercise motion authored from scratch for ABS Trainer; system/locally staged fonts affect preview labels only."
+      },
+      "qa": {
+        "opens": true,
+        "visual_review": "pass_designer",
+        "seam_review": "pass_automated_and_designer",
+        "storyboard_review": "pass_designer_pending_domain_human",
+        "reduce_motion_poster_review": "pass"
+      }
+    },
+    {
+      "exercise_id": "leg_raise",
+      "catalog_media_name": "exercise_leg_raise_v1",
+      "video": {
+        "path": "design/exercise-library/exports/exercise_leg_raise_v1.mp4",
+        "container": "mp4",
+        "codec": "h264",
+        "pixel_format": "yuv420p",
+        "width_px": 720,
+        "height_px": 720,
+        "fps": 30,
+        "duration_ms": 4000,
+        "frame_count": 120,
+        "has_audio": false,
+        "loop": "seamless",
+        "size_bytes": 41525,
+        "sha256": "a7ded3566b3613f83a8055a75d9f9bb13d93a2d6069221d2b6cae9de903bc965"
+      },
+      "poster": {
+        "path": "design/exercise-library/exports/exercise_leg_raise_poster_v1.jpg",
+        "width_px": 720,
+        "height_px": 720,
+        "color_space": "sRGB",
+        "size_bytes": 17665,
+        "sha256": "41e9954ea52766a07d4a1255c323eb6cf03ce2e67f8b12800cc57aa8598f9a4c"
+      },
+      "source": {
+        "master_path": "design/exercise-library/source/render_exercise_library.py",
+        "creator_role": "designer",
+        "provenance": "original_in_house",
+        "license": "owned_original_work",
+        "third_party_inputs": [],
+        "source_notes": "Original geometric neutral mannequin, camera field and per-exercise motion authored from scratch for ABS Trainer; system/locally staged fonts affect preview labels only."
+      },
+      "qa": {
+        "opens": true,
+        "visual_review": "pass_designer",
+        "seam_review": "pass_automated_and_designer",
+        "storyboard_review": "pass_designer_pending_domain_human",
+        "reduce_motion_poster_review": "pass"
+      }
+    },
+    {
+      "exercise_id": "mountain_climber",
+      "catalog_media_name": "exercise_mountain_climber_v1",
+      "video": {
+        "path": "design/exercise-library/exports/exercise_mountain_climber_v1.mp4",
+        "container": "mp4",
+        "codec": "h264",
+        "pixel_format": "yuv420p",
+        "width_px": 720,
+        "height_px": 720,
+        "fps": 30,
+        "duration_ms": 4000,
+        "frame_count": 120,
+        "has_audio": false,
+        "loop": "seamless",
+        "size_bytes": 33153,
+        "sha256": "a7460fa94c5c8c84a27c431515167daca8942a0ff0e791caa63d1efdc1a7e1c9"
+      },
+      "poster": {
+        "path": "design/exercise-library/exports/exercise_mountain_climber_poster_v1.jpg",
+        "width_px": 720,
+        "height_px": 720,
+        "color_space": "sRGB",
+        "size_bytes": 20838,
+        "sha256": "d8e9d0ac929d21b3f0fce95ff484cf0e947f7d8cadc0c0d9ba7904c4adc25e59"
+      },
+      "source": {
+        "master_path": "design/exercise-library/source/render_exercise_library.py",
+        "creator_role": "designer",
+        "provenance": "original_in_house",
+        "license": "owned_original_work",
+        "third_party_inputs": [],
+        "source_notes": "Original geometric neutral mannequin, camera field and per-exercise motion authored from scratch for ABS Trainer; system/locally staged fonts affect preview labels only."
+      },
+      "qa": {
+        "opens": true,
+        "visual_review": "pass_designer",
+        "seam_review": "pass_automated_and_designer",
+        "storyboard_review": "pass_designer_pending_domain_human",
+        "reduce_motion_poster_review": "pass"
+      }
+    },
+    {
+      "exercise_id": "plank",
+      "catalog_media_name": "exercise_plank_v1",
+      "video": {
+        "path": "design/exercise-library/exports/exercise_plank_v1.mp4",
+        "container": "mp4",
+        "codec": "h264",
+        "pixel_format": "yuv420p",
+        "width_px": 720,
+        "height_px": 720,
+        "fps": 30,
+        "duration_ms": 4000,
+        "frame_count": 120,
+        "has_audio": false,
+        "loop": "seamless",
+        "size_bytes": 26055,
+        "sha256": "8b2a99b8a1cb37b0115fa269a26650ae53d9b1c4d537b8a1ab29597a22d06d12"
+      },
+      "poster": {
+        "path": "design/exercise-library/exports/exercise_plank_poster_v1.jpg",
+        "width_px": 720,
+        "height_px": 720,
+        "color_space": "sRGB",
+        "size_bytes": 20483,
+        "sha256": "5e39f7c96e31b0f2c3722b6311e2301562c0834fad14cf4847b487b4818ebbe6"
+      },
+      "source": {
+        "master_path": "design/exercise-library/source/render_exercise_library.py",
+        "creator_role": "designer",
+        "provenance": "original_in_house",
+        "license": "owned_original_work",
+        "third_party_inputs": [],
+        "source_notes": "Original geometric neutral mannequin, camera field and per-exercise motion authored from scratch for ABS Trainer; system/locally staged fonts affect preview labels only."
+      },
+      "qa": {
+        "opens": true,
+        "visual_review": "pass_designer",
+        "seam_review": "pass_automated_and_designer",
+        "storyboard_review": "pass_designer_pending_domain_human",
+        "reduce_motion_poster_review": "pass"
+      }
+    },
+    {
+      "exercise_id": "reverse_crunch",
+      "catalog_media_name": "exercise_reverse_crunch_v1",
+      "video": {
+        "path": "design/exercise-library/exports/exercise_reverse_crunch_v1.mp4",
+        "container": "mp4",
+        "codec": "h264",
+        "pixel_format": "yuv420p",
+        "width_px": 720,
+        "height_px": 720,
+        "fps": 30,
+        "duration_ms": 4000,
+        "frame_count": 120,
+        "has_audio": false,
+        "loop": "seamless",
+        "size_bytes": 27098,
+        "sha256": "526b61e2e5a7324a5f01e8c57b13a91be3db0b83dbb1f9ec5e33b54f465a4d45"
+      },
+      "poster": {
+        "path": "design/exercise-library/exports/exercise_reverse_crunch_poster_v1.jpg",
+        "width_px": 720,
+        "height_px": 720,
+        "color_space": "sRGB",
+        "size_bytes": 16328,
+        "sha256": "2daf82301df201f34f2de15680de3b8fc098e3f581ed75920d98db0f4ca47ecd"
+      },
+      "source": {
+        "master_path": "design/exercise-library/source/render_exercise_library.py",
+        "creator_role": "designer",
+        "provenance": "original_in_house",
+        "license": "owned_original_work",
+        "third_party_inputs": [],
+        "source_notes": "Original geometric neutral mannequin, camera field and per-exercise motion authored from scratch for ABS Trainer; system/locally staged fonts affect preview labels only."
+      },
+      "qa": {
+        "opens": true,
+        "visual_review": "pass_designer",
+        "seam_review": "pass_automated_and_designer",
+        "storyboard_review": "pass_designer_pending_domain_human",
+        "reduce_motion_poster_review": "pass"
+      }
+    },
+    {
+      "exercise_id": "russian_twist",
+      "catalog_media_name": "exercise_russian_twist_v1",
+      "video": {
+        "path": "design/exercise-library/exports/exercise_russian_twist_v1.mp4",
+        "container": "mp4",
+        "codec": "h264",
+        "pixel_format": "yuv420p",
+        "width_px": 720,
+        "height_px": 720,
+        "fps": 30,
+        "duration_ms": 4000,
+        "frame_count": 120,
+        "has_audio": false,
+        "loop": "seamless",
+        "size_bytes": 23539,
+        "sha256": "e4dfddef0bb675daf32a3bf479ac754b53d3cd91d2498664684c59d8170f1d19"
+      },
+      "poster": {
+        "path": "design/exercise-library/exports/exercise_russian_twist_poster_v1.jpg",
+        "width_px": 720,
+        "height_px": 720,
+        "color_space": "sRGB",
+        "size_bytes": 17427,
+        "sha256": "c0e99a77e98c2b8e4b40e1875e2a74b6cc633f050fa740991e7725d739b0b04f"
+      },
+      "source": {
+        "master_path": "design/exercise-library/source/render_exercise_library.py",
+        "creator_role": "designer",
+        "provenance": "original_in_house",
+        "license": "owned_original_work",
+        "third_party_inputs": [],
+        "source_notes": "Original geometric neutral mannequin, camera field and per-exercise motion authored from scratch for ABS Trainer; system/locally staged fonts affect preview labels only."
+      },
+      "qa": {
+        "opens": true,
+        "visual_review": "pass_designer",
+        "seam_review": "pass_automated_and_designer",
+        "storyboard_review": "pass_designer_pending_domain_human",
+        "reduce_motion_poster_review": "pass"
+      }
+    },
+    {
+      "exercise_id": "toe_touch",
+      "catalog_media_name": "exercise_toe_touch_v1",
+      "video": {
+        "path": "design/exercise-library/exports/exercise_toe_touch_v1.mp4",
+        "container": "mp4",
+        "codec": "h264",
+        "pixel_format": "yuv420p",
+        "width_px": 720,
+        "height_px": 720,
+        "fps": 30,
+        "duration_ms": 4000,
+        "frame_count": 120,
+        "has_audio": false,
+        "loop": "seamless",
+        "size_bytes": 32048,
+        "sha256": "383c9fb2e944b23264b16f470823db06b46de39a1cab339d99f35a2c9d49cd82"
+      },
+      "poster": {
+        "path": "design/exercise-library/exports/exercise_toe_touch_poster_v1.jpg",
+        "width_px": 720,
+        "height_px": 720,
+        "color_space": "sRGB",
+        "size_bytes": 20495,
+        "sha256": "453620977f3da3c72ba1b342ec88933e5df129d459219bb3b6d23409fdffbaec"
+      },
+      "source": {
+        "master_path": "design/exercise-library/source/render_exercise_library.py",
+        "creator_role": "designer",
+        "provenance": "original_in_house",
+        "license": "owned_original_work",
+        "third_party_inputs": [],
+        "source_notes": "Original geometric neutral mannequin, camera field and per-exercise motion authored from scratch for ABS Trainer; system/locally staged fonts affect preview labels only."
+      },
+      "qa": {
+        "opens": true,
+        "visual_review": "pass_designer",
+        "seam_review": "pass_automated_and_designer",
+        "storyboard_review": "pass_designer_pending_domain_human",
+        "reduce_motion_poster_review": "pass"
+      }
+    }
+  ]
+}

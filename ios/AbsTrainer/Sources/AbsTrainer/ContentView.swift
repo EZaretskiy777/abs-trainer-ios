@@ -5,6 +5,8 @@ struct ContentView: View {
     private enum Route: Hashable {
         case plan
         case session
+        case exerciseLibrary
+        case exerciseDetail(String)
     }
 
     @State private var selectedDuration = 10
@@ -14,8 +16,10 @@ struct ContentView: View {
     @State private var path: [Route] = []
     @State private var isGenerating = false
     @State private var generationError: String?
+    @State private var wasExerciseLibraryOpen = false
     @ScaledMetric(relativeTo: .largeTitle) private var displayTitleSize = 42
     @AccessibilityFocusState private var setupTitleFocused: Bool
+    @AccessibilityFocusState private var exerciseLibraryButtonFocused: Bool
     @Environment(\.verticalSizeClass) private var verticalSizeClass
 
     private let generator = WorkoutGenerator()
@@ -63,12 +67,28 @@ struct ContentView: View {
                     } else {
                         Color.clear.onAppear { path.removeAll() }
                     }
+                case .exerciseLibrary:
+                    ExerciseLibraryView { exerciseID in
+                        path.append(.exerciseDetail(exerciseID))
+                    }
+                case let .exerciseDetail(exerciseID):
+                    if let exercise = ExerciseCatalog.starter.first(where: { $0.id == exerciseID }) {
+                        ExerciseDetailView(exercise: exercise)
+                    } else {
+                        Color.clear.onAppear { path.removeLast() }
+                    }
                 }
             }
         }
         .tint(TempoTokens.ColorToken.carbon)
         .preferredColorScheme(.light)
         .onAppear { setupTitleFocused = true }
+        .onChange(of: path) { newPath in
+            if newPath.isEmpty, wasExerciseLibraryOpen {
+                exerciseLibraryButtonFocused = true
+            }
+            wasExerciseLibraryOpen = newPath.contains(.exerciseLibrary)
+        }
     }
 
     @ViewBuilder
@@ -96,11 +116,27 @@ struct ContentView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: TempoTokens.Space.sm) {
-            Text("Локальная тренировка")
-                .font(.caption.weight(.semibold))
-                .textCase(.uppercase)
-                .tracking(1.4)
-                .foregroundStyle(TempoTokens.ColorToken.vermilion)
+            HStack(alignment: .center, spacing: TempoTokens.Space.sm) {
+                Text("Локальная тренировка")
+                    .font(.caption.weight(.semibold))
+                    .textCase(.uppercase)
+                    .tracking(1.4)
+                    .foregroundStyle(TempoTokens.ColorToken.vermilion)
+                Spacer(minLength: TempoTokens.Space.xs)
+                Button {
+                    guard !isGenerating else { return }
+                    path.append(.exerciseLibrary)
+                } label: {
+                    Label("Упражнения", systemImage: "list.bullet.rectangle")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(minHeight: TempoTokens.Size.minimumTap)
+                }
+                .buttonStyle(.plain)
+                .disabled(isGenerating)
+                .accessibilityLabel("Открыть каталог упражнений")
+                .accessibilityIdentifier("setup.openExercises")
+                .accessibilityFocused($exerciseLibraryButtonFocused)
+            }
             Text("Соберите свой темп")
                 .font(.system(size: displayTitleSize, weight: .bold))
                 .foregroundStyle(TempoTokens.ColorToken.carbon)

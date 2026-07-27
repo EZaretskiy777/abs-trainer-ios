@@ -1,0 +1,15 @@
+ABS Trainer exercise media validation
+
+bicycle_twist      PASS                 video=  44043 poster= 16741 720x720 30fps 120f 4.00s audio=False seam_rms=1.987
+crunch             PASS                 video=  27078 poster= 18245 720x720 30fps 120f 4.00s audio=False seam_rms=1.069
+dead_bug           PASS                 video=  39427 poster= 21194 720x720 30fps 120f 4.00s audio=False seam_rms=1.196
+hollow_hold        PASS                 video=  25629 poster= 17818 720x720 30fps 120f 4.00s audio=False seam_rms=1.184
+leg_raise          PASS                 video=  41525 poster= 17665 720x720 30fps 120f 4.00s audio=False seam_rms=1.005
+mountain_climber   PASS                 video=  33153 poster= 20838 720x720 30fps 120f 4.00s audio=False seam_rms=1.333
+plank              PASS                 video=  26055 poster= 20483 720x720 30fps 120f 4.00s audio=False seam_rms=1.278
+reverse_crunch     PASS                 video=  27098 poster= 16328 720x720 30fps 120f 4.00s audio=False seam_rms=0.900
+russian_twist      PASS                 video=  23539 poster= 17427 720x720 30fps 120f 4.00s audio=False seam_rms=1.080
+toe_touch          PASS                 video=  32048 poster= 20495 720x720 30fps 120f 4.00s audio=False seam_rms=1.074
+TOTAL 506829 bytes (0.507 MB) target<=10.000MB hard<=13.400MB
+
+RESULT: PASS

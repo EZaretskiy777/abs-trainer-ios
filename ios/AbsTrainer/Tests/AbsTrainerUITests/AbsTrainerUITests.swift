@@ -325,12 +325,104 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
+    func testExerciseLibrarySearchFiltersDetailAndSetupState() throws {
+        let app = launchApp(viewport: CGSize(width: 393, height: 852))
+        let upperSetup = app.buttons["setup.zone.upper"]
+        XCTAssertTrue(upperSetup.waitForExistence(timeout: 5))
+        upperSetup.tap()
+
+        openExerciseLibrary(in: app)
+        let count = app.staticTexts["exerciseLibrary.resultCount"]
+        XCTAssertTrue(count.waitForExistence(timeout: 5))
+        XCTAssertEqual(count.label, "10 упражнений")
+
+        app.buttons["exerciseLibrary.zone.upper"].tap()
+        app.buttons["exerciseLibrary.difficulty.beginner"].tap()
+        XCTAssertEqual(count.label, "2 упражнения")
+
+        let search = app.searchFields["Найти упражнение"]
+        XCTAssertTrue(search.waitForExistence(timeout: 3))
+        search.tap()
+        search.typeText("Касания")
+        XCTAssertEqual(count.label, "1 упражнение")
+        attachScreenshot(named: "exercise-library-filtered")
+
+        let row = app.buttons["exerciseLibrary.row.toe_touch"]
+        XCTAssertTrue(row.waitForExistence(timeout: 3))
+        row.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["exerciseDetail.screen.toe_touch"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["exerciseDetail.title"].exists)
+        XCTAssertTrue(app.staticTexts["exerciseDetail.metadata"].label.contains("Начальный"))
+        XCTAssertTrue(app.descendants(matching: .any)["exerciseDetail.phases"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["exerciseDetail.cues"].exists)
+        attachScreenshot(named: "exercise-detail-playing")
+
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertEqual(count.label, "1 упражнение", "Live navigation stack must preserve library query and filters")
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(upperSetup.waitForExistence(timeout: 3))
+        XCTAssertEqual(upperSetup.value as? String, "Выбрано")
+    }
+
+    @MainActor
+    func testExerciseLibraryNoResultsResetAndVideoFallback() throws {
+        let app = launchApp(
+            viewport: CGSize(width: 320, height: 700),
+            extraArguments: ["-ExerciseMediaFailure", "-ExercisePosterFailure"]
+        )
+        openExerciseLibrary(in: app)
+
+        let search = app.searchFields["Найти упражнение"]
+        XCTAssertTrue(search.waitForExistence(timeout: 3))
+        search.tap()
+        search.typeText("нет такого упражнения")
+        XCTAssertTrue(app.descendants(matching: .any)["exerciseLibrary.noResults"].waitForExistence(timeout: 3))
+        attachScreenshot(named: "exercise-library-no-results-320x700")
+        app.buttons["Сбросить фильтры"].tap()
+
+        let row = app.buttons["exerciseLibrary.row.crunch"]
+        XCTAssertTrue(row.waitForExistence(timeout: 3))
+        row.tap()
+        let motion = app.descendants(matching: .any)["exerciseDetail.motion"]
+        XCTAssertTrue(motion.waitForExistence(timeout: 3))
+        XCTAssertEqual(motion.value as? String, "Анимация недоступна, показана резервная иллюстрация")
+        XCTAssertTrue(app.descendants(matching: .any)["exerciseDetail.disclaimer"].exists)
+        attachScreenshot(named: "exercise-detail-video-fallback-320x700")
+    }
+
+    @MainActor
+    func testExerciseDetailReduceMotionAndAX3LandscapeRemainScrollable() throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let app = launchApp(
+            contentSizeCategory: "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+            extraArguments: ["-UIAccessibilityReduceMotionEnabled", "YES"]
+        )
+        openExerciseLibrary(in: app)
+        let row = app.buttons["exerciseLibrary.row.crunch"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+
+        let motion = app.descendants(matching: .any)["exerciseDetail.motion"]
+        XCTAssertTrue(motion.waitForExistence(timeout: 3))
+        XCTAssertEqual(motion.value as? String, "Статичная демонстрация")
+        let disclaimer = app.descendants(matching: .any)["exerciseDetail.disclaimer"]
+        for _ in 0..<8 where !disclaimer.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(disclaimer.exists)
+        XCTAssertTrue(disclaimer.isHittable)
+        attachScreenshot(named: "exercise-detail-ax3-landscape-reduce-motion")
+    }
+
+    @MainActor
     private func launchApp(
         viewport: CGSize? = nil,
-        contentSizeCategory: String? = nil
+        contentSizeCategory: String? = nil,
+        extraArguments: [String] = []
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments += ["-ValidationMode", "YES", "-AppleInterfaceStyle", "Dark"]
+        app.launchArguments += extraArguments
         if let viewport {
             app.launchArguments += [
                 "-ValidationViewportWidth", String(Int(viewport.width)),
@@ -342,6 +434,14 @@ final class AbsTrainerUITests: XCTestCase {
         }
         app.launch()
         return app
+    }
+
+    @MainActor
+    private func openExerciseLibrary(in app: XCUIApplication) {
+        let opener = app.buttons["setup.openExercises"]
+        XCTAssertTrue(opener.waitForExistence(timeout: 5))
+        opener.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["exerciseLibrary.screen"].waitForExistence(timeout: 5))
     }
 
     @MainActor
