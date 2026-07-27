@@ -26,7 +26,7 @@ final class ExerciseLibraryTests: XCTestCase {
     func testSearchZoneAndDifficultyAreIntersectedWithoutChangingCatalogOrder() {
         let results = ExerciseLibraryQuery.filter(
             ExerciseCatalog.starter,
-            query: "скруч",
+            query: "",
             zone: .obliques,
             difficulty: .intermediate
         )

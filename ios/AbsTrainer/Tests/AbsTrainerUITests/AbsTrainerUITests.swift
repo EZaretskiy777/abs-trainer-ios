@@ -85,8 +85,7 @@ final class AbsTrainerUITests: XCTestCase {
 
         let visibleFrame = visibleFrame(above: setup, in: app.windows.firstMatch)
         scrollIntoView([high], in: app, visibleFrame: visibleFrame)
-        high.tap()
-        XCTAssertEqual(high.value as? String, "Выбрано")
+        tapAndWaitForValue(high, value: "Выбрано")
         XCTAssertEqual(balanced.value as? String, "Не выбрано")
         attachScreenshot(named: "01-setup-intensity-selection")
         setup.tap()
@@ -348,6 +347,7 @@ final class AbsTrainerUITests: XCTestCase {
         attachScreenshot(named: "exercise-library-filtered")
 
         let row = app.buttons["exerciseLibrary.row.toe_touch"]
+        reveal(row, in: app)
         XCTAssertTrue(row.waitForExistence(timeout: 3))
         row.tap()
         XCTAssertTrue(app.descendants(matching: .any)["exerciseDetail.screen.toe_touch"].waitForExistence(timeout: 3))
@@ -381,6 +381,7 @@ final class AbsTrainerUITests: XCTestCase {
         app.buttons["Сбросить фильтры"].tap()
 
         let row = app.buttons["exerciseLibrary.row.crunch"]
+        reveal(row, in: app)
         XCTAssertTrue(row.waitForExistence(timeout: 3))
         row.tap()
         let motion = app.descendants(matching: .any)["exerciseDetail.motion"]
@@ -399,6 +400,7 @@ final class AbsTrainerUITests: XCTestCase {
         )
         openExerciseLibrary(in: app)
         let row = app.buttons["exerciseLibrary.row.crunch"]
+        reveal(row, in: app)
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         row.tap()
 
@@ -442,6 +444,28 @@ final class AbsTrainerUITests: XCTestCase {
         XCTAssertTrue(opener.waitForExistence(timeout: 5))
         opener.tap()
         XCTAssertTrue(app.descendants(matching: .any)["exerciseLibrary.screen"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    private func reveal(_ element: XCUIElement, in app: XCUIApplication) {
+        for _ in 0..<10 where !element.exists || !element.isHittable {
+            app.swipeUp()
+        }
+    }
+
+    @MainActor
+    private func tapAndWaitForValue(_ element: XCUIElement, value: String) {
+        element.tap()
+        let selected = NSPredicate(format: "value == %@", value)
+        if !wait(for: selected, object: element, timeout: 1) {
+            element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            XCTAssertTrue(wait(for: selected, object: element, timeout: 2))
+        }
+    }
+
+    private func wait(for predicate: NSPredicate, object: Any, timeout: TimeInterval) -> Bool {
+        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: object)
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }
 
     @MainActor
