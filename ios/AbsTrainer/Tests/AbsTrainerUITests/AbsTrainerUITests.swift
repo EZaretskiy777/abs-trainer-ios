@@ -349,7 +349,7 @@ final class AbsTrainerUITests: XCTestCase {
         search.typeText("Касания")
         XCTAssertEqual(count.label, "1 упражнение")
         attachScreenshot(named: "exercise-library-filtered")
-        dismissKeyboard(in: app)
+        dismissSearch(in: app)
 
         let row = app.buttons["exerciseLibrary.row.toe_touch"]
         reveal(row, in: app)
@@ -410,7 +410,7 @@ final class AbsTrainerUITests: XCTestCase {
         let row = app.buttons["exerciseLibrary.row.crunch"]
         reveal(row, in: app)
         XCTAssertTrue(row.waitForExistence(timeout: 5))
-        row.tap()
+        row.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)).tap()
 
         let motion = app.descendants(matching: .any)["exerciseDetail.motion"]
         XCTAssertTrue(motion.waitForExistence(timeout: 3))
@@ -472,14 +472,19 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
-    private func dismissKeyboard(in app: XCUIApplication) {
+    private func dismissSearch(in app: XCUIApplication) {
         let keyboard = app.keyboards.firstMatch
-        guard keyboard.exists else { return }
+        if keyboard.exists {
+            let searchKey = keyboard.buttons["Search"]
+            XCTAssertTrue(searchKey.waitForExistence(timeout: 2))
+            searchKey.tap()
+            XCTAssertTrue(keyboard.waitForNonExistence(timeout: 2))
+        }
 
-        let searchKey = keyboard.buttons["Search"]
-        XCTAssertTrue(searchKey.waitForExistence(timeout: 2))
-        searchKey.tap()
-        XCTAssertTrue(keyboard.waitForNonExistence(timeout: 2))
+        let closeSearch = app.buttons["закрыть"]
+        XCTAssertTrue(closeSearch.waitForExistence(timeout: 2))
+        closeSearch.tap()
+        XCTAssertTrue(closeSearch.waitForNonExistence(timeout: 2))
     }
 
     private func wait(for predicate: NSPredicate, object: Any, timeout: TimeInterval) -> Bool {
