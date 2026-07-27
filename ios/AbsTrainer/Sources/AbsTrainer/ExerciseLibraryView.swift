@@ -337,6 +337,7 @@ private struct ExerciseLibraryRow: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isButton)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityHint("Открывает описание и демонстрацию")
         .accessibilityIdentifier("exerciseLibrary.row.\(exercise.id)")

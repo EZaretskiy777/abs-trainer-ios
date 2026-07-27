@@ -84,7 +84,11 @@ final class AbsTrainerUITests: XCTestCase {
         XCTAssertEqual(lower.value as? String, "Выбрано")
 
         let visibleFrame = visibleFrame(above: setup, in: app.windows.firstMatch)
-        scrollIntoView([high], in: app, visibleFrame: visibleFrame)
+        let setupScroll = app.scrollViews["setup.scroll"]
+        XCTAssertTrue(setupScroll.waitForExistence(timeout: 3))
+        scrollIntoView([high], in: app, visibleFrame: visibleFrame, scrollSurface: setupScroll)
+        XCTAssertTrue(high.isHittable)
+        assertContained(high.frame, in: visibleFrame)
         tapAndWaitForValue(high, value: "Выбрано")
         XCTAssertEqual(balanced.value as? String, "Не выбрано")
         attachScreenshot(named: "01-setup-intensity-selection")
@@ -642,8 +646,10 @@ final class AbsTrainerUITests: XCTestCase {
     private func scrollIntoView(
         _ controls: [XCUIElement],
         in app: XCUIApplication,
-        visibleFrame: CGRect
+        visibleFrame: CGRect,
+        scrollSurface: XCUIElement? = nil
     ) {
+        let surface: XCUIElement = scrollSurface ?? app
         for _ in 0..<8 {
             let frames = controls.map(\.frame)
             if controls.allSatisfy({ $0.isHittable }),
@@ -657,10 +663,10 @@ final class AbsTrainerUITests: XCTestCase {
             let shouldRevealTop = frames.contains { $0.minY < visibleFrame.minY - tolerance }
             let startY: CGFloat = shouldRevealTop ? 0.42 : 0.62
             let endY: CGFloat = shouldRevealTop ? 0.57 : 0.47
-            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: startY))
+            surface.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: startY))
                 .press(
                     forDuration: 0.05,
-                    thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: endY))
+                    thenDragTo: surface.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: endY))
                 )
         }
     }

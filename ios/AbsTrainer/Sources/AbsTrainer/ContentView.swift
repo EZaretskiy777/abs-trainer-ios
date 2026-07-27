@@ -32,6 +32,7 @@ struct ContentView: View {
                 .padding(.top, TempoTokens.Space.xl)
                 .padding(.bottom, 88)
             }
+            .accessibilityIdentifier("setup.scroll")
             .background(TempoTokens.ColorToken.chalk.ignoresSafeArea())
             .safeAreaInset(edge: .bottom) {
                 TempoPrimaryButton(
