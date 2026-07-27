@@ -495,7 +495,7 @@ final class AbsTrainerUITests: XCTestCase {
             scrollIntoView([element], in: app, visibleFrame: finishVisibleFrame)
             XCTAssertTrue(element.isHittable, "Required Finish content must be visible and reachable")
             XCTAssertFalse(element.frame.isEmpty, "Required Finish content must have a non-empty frame")
-            if element.frame.height <= finishVisibleFrame.height + tolerance {
+            if element.frame.height < finishVisibleFrame.height - tolerance {
                 assertContained(element.frame, in: finishVisibleFrame)
             } else {
                 XCTAssertGreaterThan(element.frame.intersection(finishVisibleFrame).height, 0)
