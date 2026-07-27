@@ -17,6 +17,7 @@ struct FinishView: View {
                     .textCase(.uppercase)
                     .tracking(1.2)
                     .foregroundStyle(TempoTokens.ColorToken.vermilion)
+                    .accessibilityIdentifier("finish.eyebrow")
 
                 completionSymbol
 
@@ -24,24 +25,30 @@ struct FinishView: View {
                     .font(.system(size: finishTitleSize, weight: .bold))
                     .foregroundStyle(TempoTokens.ColorToken.carbon)
                     .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("finish.title")
                     .accessibilityFocused($finishTitleFocused)
                 Text("Все упражнения выполнены. Результат сохранён только на этом устройстве.")
                     .font(.body)
                     .foregroundStyle(TempoTokens.ColorToken.muted)
                     .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("finish.body")
 
                 ViewThatFits(in: .horizontal) {
                     HStack(alignment: .top, spacing: TempoTokens.Space.xl) {
                         result(value: WorkoutSessionStore.format(seconds: elapsedSeconds), label: "фактическое время")
+                            .accessibilityIdentifier("finish.elapsedResult")
                         Divider()
                             .overlay(TempoTokens.ColorToken.carbon.opacity(0.16))
                         result(value: "\(completedCount) / \(plan.items.count)", label: "упражнений")
+                            .accessibilityIdentifier("finish.completedResult")
                     }
                     VStack(alignment: .leading, spacing: TempoTokens.Space.md) {
                         result(value: WorkoutSessionStore.format(seconds: elapsedSeconds), label: "фактическое время")
+                            .accessibilityIdentifier("finish.elapsedResult")
                         Divider()
                             .overlay(TempoTokens.ColorToken.carbon.opacity(0.16))
                         result(value: "\(completedCount) / \(plan.items.count)", label: "упражнений")
+                            .accessibilityIdentifier("finish.completedResult")
                     }
                 }
                 .padding(.vertical, TempoTokens.Space.md)

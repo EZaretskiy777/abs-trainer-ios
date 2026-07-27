@@ -484,11 +484,11 @@ final class AbsTrainerUITests: XCTestCase {
 
         let finishVisibleFrame = visibleFrame(above: repeatWorkout, in: container)
         let finishHierarchy = [
-            app.staticTexts["Тренировка завершена"],
-            app.staticTexts["Темп\nвыдержан."],
-            app.staticTexts["Все упражнения выполнены. Результат сохранён только на этом устройстве."],
-            app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'фактическое время'")).firstMatch,
-            app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'упражнений'")).firstMatch
+            app.descendants(matching: .any)["finish.eyebrow"],
+            app.descendants(matching: .any)["finish.title"],
+            app.descendants(matching: .any)["finish.body"],
+            app.descendants(matching: .any)["finish.elapsedResult"],
+            app.descendants(matching: .any)["finish.completedResult"]
         ]
         for element in finishHierarchy {
             XCTAssertTrue(element.waitForExistence(timeout: 2), "Required Finish content must exist")
