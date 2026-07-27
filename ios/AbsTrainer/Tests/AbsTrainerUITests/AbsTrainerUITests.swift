@@ -349,6 +349,7 @@ final class AbsTrainerUITests: XCTestCase {
         search.typeText("Касания")
         XCTAssertEqual(count.label, "1 упражнение")
         attachScreenshot(named: "exercise-library-filtered")
+        dismissKeyboard(in: app)
 
         let row = app.buttons["exerciseLibrary.row.toe_touch"]
         reveal(row, in: app)
@@ -361,9 +362,12 @@ final class AbsTrainerUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["exerciseDetail.cues"].exists)
         attachScreenshot(named: "exercise-detail-playing")
 
-        app.navigationBars.buttons.firstMatch.tap()
+        let backButton = app.buttons["BackButton"]
+        XCTAssertTrue(backButton.waitForExistence(timeout: 3))
+        backButton.tap()
         XCTAssertEqual(count.label, "1 упражнение", "Live navigation stack must preserve library query and filters")
-        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(backButton.waitForExistence(timeout: 3))
+        backButton.tap()
         XCTAssertTrue(upperSetup.waitForExistence(timeout: 3))
         XCTAssertEqual(upperSetup.value as? String, "Выбрано")
     }
@@ -465,6 +469,17 @@ final class AbsTrainerUITests: XCTestCase {
             element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
             XCTAssertTrue(wait(for: selected, object: element, timeout: 2))
         }
+    }
+
+    @MainActor
+    private func dismissKeyboard(in app: XCUIApplication) {
+        let keyboard = app.keyboards.firstMatch
+        guard keyboard.exists else { return }
+
+        let searchKey = keyboard.buttons["Search"]
+        XCTAssertTrue(searchKey.waitForExistence(timeout: 2))
+        searchKey.tap()
+        XCTAssertTrue(keyboard.waitForNonExistence(timeout: 2))
     }
 
     private func wait(for predicate: NSPredicate, object: Any, timeout: TimeInterval) -> Bool {
@@ -661,12 +676,14 @@ final class AbsTrainerUITests: XCTestCase {
             }
 
             let shouldRevealTop = frames.contains { $0.minY < visibleFrame.minY - tolerance }
-            let startY: CGFloat = shouldRevealTop ? 0.42 : 0.62
-            let endY: CGFloat = shouldRevealTop ? 0.57 : 0.47
-            surface.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: startY))
+            let usesGutterDrag = scrollSurface != nil
+            let startY: CGFloat = usesGutterDrag ? (shouldRevealTop ? 0.25 : 0.75) : (shouldRevealTop ? 0.42 : 0.62)
+            let endY: CGFloat = usesGutterDrag ? (shouldRevealTop ? 0.75 : 0.25) : (shouldRevealTop ? 0.57 : 0.47)
+            let dragX: CGFloat = usesGutterDrag ? 0.05 : 0.5
+            surface.coordinate(withNormalizedOffset: CGVector(dx: dragX, dy: startY))
                 .press(
                     forDuration: 0.05,
-                    thenDragTo: surface.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: endY))
+                    thenDragTo: surface.coordinate(withNormalizedOffset: CGVector(dx: dragX, dy: endY))
                 )
         }
     }
