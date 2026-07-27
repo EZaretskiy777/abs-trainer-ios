@@ -515,8 +515,20 @@ private struct ExerciseMotionAperture: View {
             && ExerciseMediaRepository.posterURL(for: exercise) != nil
     }
 
+    private var validationReduceMotion: Bool {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        guard arguments.contains("-ValidationMode"),
+              let index = arguments.firstIndex(of: "-ValidationReduceMotion"),
+              arguments.indices.contains(index + 1) else { return false }
+        return arguments[index + 1].caseInsensitiveCompare("YES") == .orderedSame
+        #else
+        return false
+        #endif
+    }
+
     private var staticMode: Bool {
-        reduceMotion || ProcessInfo.processInfo.isLowPowerModeEnabled
+        reduceMotion || validationReduceMotion || ProcessInfo.processInfo.isLowPowerModeEnabled
     }
 
     var body: some View {

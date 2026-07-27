@@ -349,7 +349,7 @@ final class AbsTrainerUITests: XCTestCase {
         search.typeText("Касания")
         XCTAssertEqual(count.label, "1 упражнение")
         attachScreenshot(named: "exercise-library-filtered")
-        dismissSearch(in: app)
+        dismissKeyboard(in: app)
 
         let row = app.buttons["exerciseLibrary.row.toe_touch"]
         reveal(row, in: app)
@@ -366,6 +366,7 @@ final class AbsTrainerUITests: XCTestCase {
         XCTAssertTrue(backButton.waitForExistence(timeout: 3))
         backButton.tap()
         XCTAssertEqual(count.label, "1 упражнение", "Live navigation stack must preserve library query and filters")
+        closeSearch(in: app)
         XCTAssertTrue(backButton.waitForExistence(timeout: 3))
         backButton.tap()
         XCTAssertTrue(upperSetup.waitForExistence(timeout: 3))
@@ -404,7 +405,7 @@ final class AbsTrainerUITests: XCTestCase {
         XCUIDevice.shared.orientation = .landscapeLeft
         let app = launchApp(
             contentSizeCategory: "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
-            extraArguments: ["-UIAccessibilityReduceMotionEnabled", "YES"]
+            extraArguments: ["-ValidationReduceMotion", "YES"]
         )
         openExerciseLibrary(in: app)
         let row = app.buttons["exerciseLibrary.row.crunch"]
@@ -472,15 +473,18 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
-    private func dismissSearch(in app: XCUIApplication) {
+    private func dismissKeyboard(in app: XCUIApplication) {
         let keyboard = app.keyboards.firstMatch
-        if keyboard.exists {
-            let searchKey = keyboard.buttons["Search"]
-            XCTAssertTrue(searchKey.waitForExistence(timeout: 2))
-            searchKey.tap()
-            XCTAssertTrue(keyboard.waitForNonExistence(timeout: 2))
-        }
+        guard keyboard.exists else { return }
 
+        let searchKey = keyboard.buttons["Search"]
+        XCTAssertTrue(searchKey.waitForExistence(timeout: 2))
+        searchKey.tap()
+        XCTAssertTrue(keyboard.waitForNonExistence(timeout: 2))
+    }
+
+    @MainActor
+    private func closeSearch(in app: XCUIApplication) {
         let closeSearch = app.buttons["закрыть"]
         XCTAssertTrue(closeSearch.waitForExistence(timeout: 2))
         closeSearch.tap()
