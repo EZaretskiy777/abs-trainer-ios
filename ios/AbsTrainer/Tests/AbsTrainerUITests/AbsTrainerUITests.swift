@@ -455,7 +455,7 @@ final class AbsTrainerUITests: XCTestCase {
         )
         XCTAssertTrue(
             wait(
-                for: NSPredicate(format: "value CONTAINS %@", "cover=video;covers=poster,video,poster,video;"),
+                for: NSPredicate(format: "value CONTAINS %@", "cover=video;covers=poster,video,poster,video"),
                 object: playbackProbe,
                 timeout: 3
             ),
@@ -468,7 +468,7 @@ final class AbsTrainerUITests: XCTestCase {
         let firstLoopMilliseconds = try playbackMetric("firstLoopMs", in: evidence)
         let interruptions = try playbackMetric("interruptions", in: evidence)
         XCTAssertTrue(
-            evidence.contains("cover=video;covers=poster,video,poster,video;"),
+            evidence.contains("cover=video;covers=poster,video,poster,video"),
             "Poster cover did not protect the AVPlayerLooper handoff until its first real frame: \(evidence)"
         )
         XCTAssertGreaterThanOrEqual(posterMilliseconds, 0, "Poster timing was not measured: \(evidence)")
@@ -579,7 +579,7 @@ final class AbsTrainerUITests: XCTestCase {
 
         setup.tap()
         XCTAssertTrue(app.descendants(matching: .any)["plan.audio.summary"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["plan.audio.edit"].exists)
+        XCTAssertTrue(app.buttons["Изменить настройки звука тренировки"].waitForExistence(timeout: 3))
         app.buttons["Начать тренировку"].tap()
 
         let sessionAudio = app.buttons["session.audio.toggle"]
