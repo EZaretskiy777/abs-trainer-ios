@@ -88,6 +88,11 @@ enum CoachingEvent {
         prescription: WorkoutPrescription
     )
     case repetitionCount(index: Int, count: Int, prescription: WorkoutPrescription)
+    case manualCountStarted(index: Int)
+    case repetitionTargetReached(index: Int)
+    case setConfirmed(index: Int)
+    case completedEarly(index: Int)
+    case exerciseSkipped(index: Int)
     case restStarted(index: Int, total: Int, nextTitle: String?)
     case workoutFinished
 }
@@ -136,6 +141,7 @@ struct CoachingScheduler {
                     ? "Цель — \(target) повторов, по \(target / 2) на каждую сторону. Каждая смена стороны — следующий номер. Счёт задаёт темп."
                     : "Цель — \(target) повторов. Каждый полный цикл — один повтор. Счёт задаёт темп."
                 result.append(phrase("exercise.\(index).prescription", detail, .transition))
+                result.append(phrase("exercise.\(index).prepare", "Приготовились.", .transition))
             }
             return result
         case let .exerciseTick(index, elapsed, remaining, prescription):
@@ -162,6 +168,20 @@ struct CoachingScheduler {
                 Self.russianNumerals[count - 1],
                 .cadence
             )]
+        case let .manualCountStarted(index):
+            return [phrase("exercise.\(index).manual", "Ручной счёт.", .transition)]
+        case let .repetitionTargetReached(index):
+            return [phrase(
+                "exercise.\(index).target",
+                "Плановый счёт завершён. Подтвердите набор.",
+                .transition
+            )]
+        case let .setConfirmed(index):
+            return [phrase("exercise.\(index).confirmed", "Набор подтверждён.", .transition)]
+        case let .completedEarly(index):
+            return [phrase("exercise.\(index).early", "Набор завершён досрочно.", .transition)]
+        case let .exerciseSkipped(index):
+            return [phrase("exercise.\(index).skipped", "Упражнение пропущено.", .transition)]
         case let .restStarted(index, total, nextTitle):
             var result = [phrase("rest.\(index).start", "Отдых.", .transition)]
             if let nextTitle {
@@ -183,13 +203,40 @@ struct CoachingScheduler {
 }
 
 @MainActor
+protocol WorkoutSpeechControlling: AnyObject {
+    var isAvailable: Bool { get }
+    var isSpeaking: Bool { get }
+    func speak(_ phrases: [String], completion: @escaping () -> Void)
+    func stop()
+}
+
+@MainActor
+protocol WorkoutMusicControlling: AnyObject {
+    func play()
+    func pause()
+    func stop()
+    func reset()
+}
+
+typealias PreRollWatchdogScheduler = (
+    _ delay: TimeInterval,
+    _ action: @escaping @MainActor () -> Void
+) -> () -> Void
+
+@MainActor
 final class WorkoutAudioCoordinator: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
+    static let firstExercisePreRollTimeout: TimeInterval = 8
+
     @Published private(set) var sessionMuted = false
     @Published private(set) var statusText: String?
 
     var onSafetyPause: (() -> Void)?
 
     private let preferences: WorkoutAudioPreferences
+    private let notificationCenter: NotificationCenter
+    private let speechController: WorkoutSpeechControlling?
+    private let musicController: WorkoutMusicControlling?
+    private let schedulePreRollWatchdog: PreRollWatchdogScheduler
     private let speechSynthesizer = AVSpeechSynthesizer()
     private let audioSession = AVAudioSession.sharedInstance()
     private var musicPlayer: AVAudioPlayer?
@@ -198,25 +245,49 @@ final class WorkoutAudioCoordinator: NSObject, ObservableObject, AVSpeechSynthes
     private var lastCount = 0
     private var speechOnlySessionActive = false
     private var observerTokens: [NSObjectProtocol] = []
+    private var openingCompletion: (() -> Void)?
+    private var cancelOpeningWatchdog: (() -> Void)?
+    private var pendingOpeningUtterances = 0
+    private var observedPhase: WorkoutSessionStore.Phase?
+    private var observedIndex = 0
+    private var deliveredVoiceEventSequence = 0
+    private var speechActivitySequence = 0
 
-    init(preferences: WorkoutAudioPreferences) {
+    init(
+        preferences: WorkoutAudioPreferences,
+        notificationCenter: NotificationCenter = .default,
+        voiceOverActive: Bool? = nil,
+        speechController: WorkoutSpeechControlling? = nil,
+        musicController: WorkoutMusicControlling? = nil,
+        schedulePreRollWatchdog: @escaping PreRollWatchdogScheduler = WorkoutAudioCoordinator.liveWatchdog
+    ) {
         self.preferences = preferences
-        voiceOverActive = UIAccessibility.isVoiceOverRunning
+        self.notificationCenter = notificationCenter
+        self.speechController = speechController
+        self.musicController = musicController
+        self.schedulePreRollWatchdog = schedulePreRollWatchdog
+        self.voiceOverActive = voiceOverActive ?? UIAccessibility.isVoiceOverRunning
         super.init()
         speechSynthesizer.delegate = self
         installObservers()
     }
 
     deinit {
-        observerTokens.forEach(NotificationCenter.default.removeObserver)
+        observerTokens.forEach(notificationCenter.removeObserver)
     }
 
-    func start(plan: WorkoutPlan) {
+    func start(plan: WorkoutPlan, onOpeningComplete: @escaping () -> Void) {
         sessionMuted = false
         scheduler = CoachingScheduler()
         lastCount = 0
+        observedPhase = .exercise
+        observedIndex = 0
+        deliveredVoiceEventSequence = 0
         prepareMusicIfNeeded()
-        guard let first = plan.items.first else { return }
+        guard let first = plan.items.first else {
+            onOpeningComplete()
+            return
+        }
         var opening = scheduler.phrases(for: .workoutStarted, voiceOverActive: voiceOverActive)
         opening.append(contentsOf: scheduler.phrases(
             for: .exerciseStarted(
@@ -227,14 +298,29 @@ final class WorkoutAudioCoordinator: NSObject, ObservableObject, AVSpeechSynthes
             ),
             voiceOverActive: voiceOverActive
         ))
-        speak(opening)
+        guard canSpeak(opening) else {
+            onOpeningComplete()
+            return
+        }
+        openingCompletion = onOpeningComplete
+        cancelOpeningWatchdog = schedulePreRollWatchdog(Self.firstExercisePreRollTimeout) { [weak self] in
+            self?.finishOpeningPreRoll(cancelSpeech: true)
+        }
+        speak(opening) { [weak self] in
+            self?.finishOpeningPreRoll(cancelSpeech: false)
+        }
     }
 
     func tick(store: WorkoutSessionStore) {
-        guard store.phase == .exercise, !store.isPaused else { return }
+        guard !store.isPreparingFirstExercise else { return }
+        guard store.phase == .exercise, !store.isPaused else {
+            synchronize(store: store)
+            return
+        }
         let item = store.currentItem
         switch item.prescription {
         case .timeBased:
+            synchronize(store: store)
             let elapsed = max(0, item.durationSec - store.remainingSeconds)
             speak(scheduler.phrases(
                 for: .exerciseTick(
@@ -246,47 +332,100 @@ final class WorkoutAudioCoordinator: NSObject, ObservableObject, AVSpeechSynthes
                 voiceOverActive: voiceOverActive
             ))
         case .repetitionBased:
-            guard store.currentCount > lastCount else { return }
+            guard store.currentCount > lastCount else {
+                synchronize(store: store)
+                return
+            }
             lastCount = store.currentCount
-            speak(scheduler.phrases(
+            var phrases = scheduler.phrases(
                 for: .repetitionCount(
                     index: store.currentIndex,
                     count: store.currentCount,
                     prescription: item.prescription
                 ),
                 voiceOverActive: voiceOverActive
-            ))
+            )
+            phrases += consumeVoiceEventPhrases(from: store)
+            speak(phrases)
         }
     }
 
-    func transition(to phase: WorkoutSessionStore.Phase, store: WorkoutSessionStore) {
-        cancelSpeech()
-        switch phase {
-        case .exercise:
-            scheduler.resetForNewExercise()
-            lastCount = 0
-            speak(scheduler.phrases(
-                for: .exerciseStarted(
+    func synchronize(store: WorkoutSessionStore) {
+        let hasPendingTargetEvent = store.latestVoiceEvent.map {
+            $0.sequence > deliveredVoiceEventSequence && $0.kind == .repetitionTargetReached
+        } ?? false
+        if store.phase == .exercise,
+           !store.isPreparingFirstExercise,
+           !store.isPaused,
+           store.currentCount > lastCount,
+           store.isManualCount || hasPendingTargetEvent,
+           case .repetitionBased = store.currentItem.prescription {
+            lastCount = store.currentCount
+            var targetPhrases = scheduler.phrases(
+                for: .repetitionCount(
                     index: store.currentIndex,
-                    total: store.plan.items.count,
-                    title: store.currentItem.exercise.title,
+                    count: store.currentCount,
                     prescription: store.currentItem.prescription
                 ),
                 voiceOverActive: voiceOverActive
-            ))
-        case .rest:
-            speak(scheduler.phrases(
-                for: .restStarted(
-                    index: store.currentIndex,
-                    total: store.plan.items.count,
-                    nextTitle: store.nextItem?.exercise.title
-                ),
-                voiceOverActive: voiceOverActive
-            ))
-        case .finished:
-            musicPlayer?.stop()
-            speak(scheduler.phrases(for: .workoutFinished, voiceOverActive: voiceOverActive))
+            )
+            targetPhrases += consumeVoiceEventPhrases(from: store)
+            speak(targetPhrases)
+            return
         }
+        var phrases = consumeVoiceEventPhrases(from: store)
+
+        let phaseChanged = observedPhase != store.phase || observedIndex != store.currentIndex
+        guard phaseChanged || !phrases.isEmpty else { return }
+        if phaseChanged {
+            cancelSpeech()
+            observedPhase = store.phase
+            observedIndex = store.currentIndex
+        }
+
+        switch store.phase {
+        case .exercise:
+            if phaseChanged {
+                scheduler.resetForNewExercise()
+                lastCount = 0
+                phrases += scheduler.phrases(
+                    for: .exerciseStarted(
+                        index: store.currentIndex,
+                        total: store.plan.items.count,
+                        title: store.currentItem.exercise.title,
+                        prescription: store.currentItem.prescription
+                    ),
+                    voiceOverActive: voiceOverActive
+                )
+            }
+        case .rest:
+            if phaseChanged {
+                phrases += scheduler.phrases(
+                    for: .restStarted(
+                        index: store.currentIndex,
+                        total: store.plan.items.count,
+                        nextTitle: store.nextItem?.exercise.title
+                    ),
+                    voiceOverActive: voiceOverActive
+                )
+            }
+        case .finished:
+            if phaseChanged {
+                stopMusic()
+                phrases += scheduler.phrases(for: .workoutFinished, voiceOverActive: voiceOverActive)
+            }
+        }
+        speak(phrases)
+    }
+
+    private func consumeVoiceEventPhrases(from store: WorkoutSessionStore) -> [CoachingPhrase] {
+        guard let event = store.latestVoiceEvent,
+              event.sequence > deliveredVoiceEventSequence else { return [] }
+        deliveredVoiceEventSequence = event.sequence
+        return scheduler.phrases(
+            for: coachingEvent(for: event),
+            voiceOverActive: voiceOverActive
+        )
     }
 
     func setSessionMuted(_ muted: Bool) {
@@ -294,15 +433,17 @@ final class WorkoutAudioCoordinator: NSObject, ObservableObject, AVSpeechSynthes
         if muted {
             cancelSpeech()
             musicPlayer?.setVolume(0, fadeDuration: 0.15)
+            musicController?.pause()
         } else {
             applyIdleMusicGain()
             musicPlayer?.play()
+            musicController?.play()
         }
     }
 
     func pause() {
         cancelSpeech()
-        musicPlayer?.pause()
+        pauseMusic()
     }
 
     func resume() {
@@ -312,13 +453,30 @@ final class WorkoutAudioCoordinator: NSObject, ObservableObject, AVSpeechSynthes
         }
         applyIdleMusicGain()
         musicPlayer?.play()
+        musicController?.play()
     }
 
     func stop() {
         cancelSpeech()
-        musicPlayer?.stop()
+        stopMusic()
         musicPlayer = nil
         try? audioSession.setActive(false, options: .notifyOthersOnDeactivation)
+    }
+
+    func sceneDidBecomeInactive() {
+        handleSafetyPause()
+    }
+
+    func handleInterruptionBegan() {
+        handleSafetyPause()
+    }
+
+    func handleOldDeviceUnavailable() {
+        handleSafetyPause()
+    }
+
+    func handleMediaServicesReset() {
+        handleSafetyPause(resetMusic: true)
     }
 
     private func prepareMusicIfNeeded() {
@@ -346,13 +504,32 @@ final class WorkoutAudioCoordinator: NSObject, ObservableObject, AVSpeechSynthes
         }
     }
 
-    private func speak(_ phrases: [CoachingPhrase]) {
+    private func canSpeak(_ phrases: [CoachingPhrase]) -> Bool {
         guard preferences.voiceCoachEnabled,
               !sessionMuted,
               !voiceOverActive,
-              !phrases.isEmpty else { return }
+              !phrases.isEmpty else { return false }
+        if let speechController {
+            return speechController.isAvailable
+        }
+        return AVSpeechSynthesisVoice(language: "ru-RU") != nil
+    }
+
+    private func speak(_ phrases: [CoachingPhrase], completion: (() -> Void)? = nil) {
+        guard canSpeak(phrases) else {
+            completion?()
+            return
+        }
+        speechActivitySequence += 1
+        if let speechController {
+            speechController.speak(phrases.map(\.text)) {
+                completion?()
+            }
+            return
+        }
         guard let voice = AVSpeechSynthesisVoice(language: "ru-RU") else {
             statusText = "Звук тренировки недоступен"
+            completion?()
             return
         }
         do {
@@ -363,6 +540,7 @@ final class WorkoutAudioCoordinator: NSObject, ObservableObject, AVSpeechSynthes
             }
         } catch {
             statusText = "Звук тренировки недоступен"
+            completion?()
             return
         }
         musicPlayer?.setVolume(
@@ -371,6 +549,9 @@ final class WorkoutAudioCoordinator: NSObject, ObservableObject, AVSpeechSynthes
         )
         if speechSynthesizer.isSpeaking {
             speechSynthesizer.stopSpeaking(at: .word)
+        }
+        if completion != nil {
+            pendingOpeningUtterances = phrases.count
         }
         for phrase in phrases {
             let utterance = AVSpeechUtterance(string: phrase.text)
@@ -382,15 +563,34 @@ final class WorkoutAudioCoordinator: NSObject, ObservableObject, AVSpeechSynthes
     }
 
     private func cancelSpeech() {
-        if speechSynthesizer.isSpeaking {
-            speechSynthesizer.stopSpeaking(at: .immediate)
-        }
+        speechActivitySequence += 1
+        stopSpeech()
+        finishOpeningPreRoll(cancelSpeech: false)
         deactivateSpeechOnlySessionIfNeeded()
         applyIdleMusicGain()
     }
 
+    private func stopSpeech() {
+        if let speechController {
+            speechController.stop()
+        } else if speechSynthesizer.isSpeaking {
+            speechSynthesizer.stopSpeaking(at: .immediate)
+        }
+        pendingOpeningUtterances = 0
+    }
+
+    private func finishOpeningPreRoll(cancelSpeech: Bool) {
+        guard let completion = openingCompletion else { return }
+        openingCompletion = nil
+        cancelOpeningWatchdog?()
+        cancelOpeningWatchdog = nil
+        if cancelSpeech { stopSpeech() }
+        completion()
+    }
+
     private func deactivateSpeechOnlySessionIfNeeded() {
-        guard speechOnlySessionActive, !speechSynthesizer.isSpeaking else { return }
+        let isSpeaking = speechController?.isSpeaking ?? speechSynthesizer.isSpeaking
+        guard speechOnlySessionActive, !isSpeaking else { return }
         speechOnlySessionActive = false
         try? audioSession.setActive(false, options: .notifyOthersOnDeactivation)
     }
@@ -403,8 +603,46 @@ final class WorkoutAudioCoordinator: NSObject, ObservableObject, AVSpeechSynthes
         )
     }
 
+    private func coachingEvent(for event: WorkoutSessionStore.VoiceEvent) -> CoachingEvent {
+        switch event.kind {
+        case .manualCountStarted:
+            return .manualCountStarted(index: event.exerciseIndex)
+        case .repetitionTargetReached:
+            return .repetitionTargetReached(index: event.exerciseIndex)
+        case .setConfirmed:
+            return .setConfirmed(index: event.exerciseIndex)
+        case .completedEarly:
+            return .completedEarly(index: event.exerciseIndex)
+        case .skipped:
+            return .exerciseSkipped(index: event.exerciseIndex)
+        }
+    }
+
+    private func pauseMusic() {
+        musicPlayer?.pause()
+        musicController?.pause()
+    }
+
+    private func stopMusic() {
+        musicPlayer?.stop()
+        musicController?.stop()
+    }
+
+    static func liveWatchdog(
+        delay: TimeInterval,
+        action: @escaping @MainActor () -> Void
+    ) -> () -> Void {
+        let task = Task { @MainActor in
+            let nanoseconds = UInt64(max(0, delay) * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: nanoseconds)
+            guard !Task.isCancelled else { return }
+            action()
+        }
+        return { task.cancel() }
+    }
+
     private func installObservers() {
-        let center = NotificationCenter.default
+        let center = notificationCenter
         observerTokens.append(center.addObserver(
             forName: UIAccessibility.voiceOverStatusDidChangeNotification,
             object: nil,
@@ -419,7 +657,7 @@ final class WorkoutAudioCoordinator: NSObject, ObservableObject, AVSpeechSynthes
         ) { [weak self] notification in
             guard let raw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
                   AVAudioSession.InterruptionType(rawValue: raw) == .began else { return }
-            Task { @MainActor in self?.handleSafetyPause() }
+            Task { @MainActor in self?.handleInterruptionBegan() }
         })
         observerTokens.append(center.addObserver(
             forName: AVAudioSession.routeChangeNotification,
@@ -428,14 +666,14 @@ final class WorkoutAudioCoordinator: NSObject, ObservableObject, AVSpeechSynthes
         ) { [weak self] notification in
             guard let raw = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
                   AVAudioSession.RouteChangeReason(rawValue: raw) == .oldDeviceUnavailable else { return }
-            Task { @MainActor in self?.handleSafetyPause() }
+            Task { @MainActor in self?.handleOldDeviceUnavailable() }
         })
         observerTokens.append(center.addObserver(
             forName: AVAudioSession.mediaServicesWereResetNotification,
             object: audioSession,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.handleSafetyPause(resetMusic: true) }
+            Task { @MainActor in self?.handleMediaServicesReset() }
         })
     }
 
@@ -446,10 +684,13 @@ final class WorkoutAudioCoordinator: NSObject, ObservableObject, AVSpeechSynthes
     }
 
     private func handleSafetyPause(resetMusic: Bool = false) {
-        cancelSpeech()
-        musicPlayer?.pause()
-        if resetMusic { musicPlayer = nil }
         onSafetyPause?()
+        cancelSpeech()
+        pauseMusic()
+        if resetMusic {
+            musicPlayer = nil
+            musicController?.reset()
+        }
     }
 
     nonisolated func speechSynthesizer(
@@ -457,9 +698,28 @@ final class WorkoutAudioCoordinator: NSObject, ObservableObject, AVSpeechSynthes
         didFinish utterance: AVSpeechUtterance
     ) {
         Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 250_000_000)
-            self?.deactivateSpeechOnlySessionIfNeeded()
-            self?.applyIdleMusicGain()
+            guard let self else { return }
+            let completedActivitySequence = speechActivitySequence
+            if pendingOpeningUtterances > 0 {
+                pendingOpeningUtterances -= 1
+                if pendingOpeningUtterances == 0 {
+                    finishOpeningPreRoll(cancelSpeech: false)
+                }
+            }
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            guard completedActivitySequence == speechActivitySequence,
+                  !speechSynthesizer.isSpeaking else { return }
+            deactivateSpeechOnlySessionIfNeeded()
+            applyIdleMusicGain()
+        }
+    }
+
+    nonisolated func speechSynthesizer(
+        _ synthesizer: AVSpeechSynthesizer,
+        didCancel utterance: AVSpeechUtterance
+    ) {
+        Task { @MainActor [weak self] in
+            self?.finishOpeningPreRoll(cancelSpeech: false)
         }
     }
 }

@@ -6,7 +6,7 @@ final class WorkoutSessionStoreTests: XCTestCase {
     private let start = Date(timeIntervalSince1970: 1_000)
 
     func testSessionStartsWithFirstExerciseDuration() {
-        let store = WorkoutSessionStore(plan: makePlan(), now: start)
+        let store = makeStartedStore()
 
         XCTAssertEqual(store.phase, .exercise)
         XCTAssertEqual(store.currentIndex, 0)
@@ -15,7 +15,7 @@ final class WorkoutSessionStoreTests: XCTestCase {
     }
 
     func testExerciseDeadlineMovesSessionIntoRest() {
-        let store = WorkoutSessionStore(plan: makePlan(), now: start)
+        let store = makeStartedStore()
 
         store.tick(at: start.addingTimeInterval(10))
 
@@ -26,7 +26,7 @@ final class WorkoutSessionStoreTests: XCTestCase {
     }
 
     func testSkippingRestStartsNextExercise() {
-        let store = WorkoutSessionStore(plan: makePlan(), now: start)
+        let store = makeStartedStore()
         store.tick(at: start.addingTimeInterval(10))
 
         store.skipRest(at: start.addingTimeInterval(11))
@@ -37,7 +37,7 @@ final class WorkoutSessionStoreTests: XCTestCase {
     }
 
     func testCompletingLastExerciseFinishesSession() {
-        let store = WorkoutSessionStore(plan: makePlan(), now: start)
+        let store = makeStartedStore()
         store.tick(at: start.addingTimeInterval(10))
         store.skipRest(at: start.addingTimeInterval(10))
 
@@ -48,7 +48,7 @@ final class WorkoutSessionStoreTests: XCTestCase {
     }
 
     func testPausePreservesRemainingTimeUntilResume() {
-        let store = WorkoutSessionStore(plan: makePlan(), now: start)
+        let store = makeStartedStore()
         store.tick(at: start.addingTimeInterval(3))
 
         store.pause(at: start.addingTimeInterval(3))
@@ -61,7 +61,7 @@ final class WorkoutSessionStoreTests: XCTestCase {
     }
 
     func testRepeatedFractionalPauseDoesNotExtendDeadline() {
-        let store = WorkoutSessionStore(plan: makePlan(), now: start)
+        let store = makeStartedStore()
 
         store.pause(at: start.addingTimeInterval(0.25))
         store.resume(at: start.addingTimeInterval(5))
@@ -74,13 +74,52 @@ final class WorkoutSessionStoreTests: XCTestCase {
     }
 
     func testLateTickReconcilesAcrossExerciseAndRestDeadlines() {
-        let store = WorkoutSessionStore(plan: makePlan(), now: start)
+        let store = makeStartedStore()
 
         store.tick(at: start.addingTimeInterval(16))
 
         XCTAssertEqual(store.phase, .exercise)
         XCTAssertEqual(store.currentIndex, 1)
         XCTAssertEqual(store.remainingSeconds, 7)
+    }
+
+    func testFirstDeadlineDoesNotAdvanceDuringPreparationAndStartsAtCompletion() {
+        let store = WorkoutSessionStore(plan: makePlan(), now: start)
+
+        store.tick(at: start.addingTimeInterval(30))
+
+        XCTAssertTrue(store.isPreparingFirstExercise)
+        XCTAssertEqual(store.phase, .exercise)
+        XCTAssertEqual(store.remainingSeconds, 10)
+
+        store.completeFirstExercisePreparation(at: start.addingTimeInterval(30))
+        store.tick(at: start.addingTimeInterval(39))
+        XCTAssertEqual(store.remainingSeconds, 1)
+        XCTAssertEqual(store.phase, .exercise)
+
+        store.tick(at: start.addingTimeInterval(40))
+        XCTAssertEqual(store.phase, .rest)
+    }
+
+    func testPreparationCompletionIsIdempotentAndPauseRequiresExplicitResume() {
+        let store = WorkoutSessionStore(plan: makePlan(), now: start)
+        store.pause(at: start.addingTimeInterval(1))
+        store.completeFirstExercisePreparation(at: start.addingTimeInterval(2))
+        store.completeFirstExercisePreparation(at: start.addingTimeInterval(8))
+
+        store.tick(at: start.addingTimeInterval(20))
+        XCTAssertTrue(store.isPaused)
+        XCTAssertEqual(store.remainingSeconds, 10)
+
+        store.resume(at: start.addingTimeInterval(20))
+        store.tick(at: start.addingTimeInterval(29))
+        XCTAssertEqual(store.remainingSeconds, 1)
+    }
+
+    private func makeStartedStore() -> WorkoutSessionStore {
+        let store = WorkoutSessionStore(plan: makePlan(), now: start)
+        store.completeFirstExercisePreparation(at: start)
+        return store
     }
 
     private func makePlan() -> WorkoutPlan {
@@ -192,7 +231,7 @@ final class RepetitionWorkoutSessionStoreTests: XCTestCase {
     private let start = Date(timeIntervalSince1970: 2_000)
 
     func testPacedCountReachesTargetButWaitsForExplicitConfirmation() {
-        let store = WorkoutSessionStore(plan: repetitionPlan(), now: start)
+        let store = startedStore(plan: repetitionPlan())
         store.tick(at: start.addingTimeInterval(12))
 
         XCTAssertEqual(store.currentCount, 4)
@@ -209,7 +248,7 @@ final class RepetitionWorkoutSessionStoreTests: XCTestCase {
     }
 
     func testPauseAndLateTickDoNotCatchUpRepetitionCount() {
-        let store = WorkoutSessionStore(plan: repetitionPlan(target: 6), now: start)
+        let store = startedStore(plan: repetitionPlan(target: 6))
         store.tick(at: start.addingTimeInterval(6))
         XCTAssertEqual(store.currentCount, 2)
 
@@ -224,7 +263,7 @@ final class RepetitionWorkoutSessionStoreTests: XCTestCase {
     }
 
     func testManualCountIsBoundedAndSkipDoesNotIncrementCompletedCount() {
-        let store = WorkoutSessionStore(plan: repetitionPlan(target: 4), now: start)
+        let store = startedStore(plan: repetitionPlan(target: 4))
         store.switchToManualCount()
         store.adjustManualCount(by: -1)
         XCTAssertEqual(store.currentCount, 0)
@@ -236,6 +275,31 @@ final class RepetitionWorkoutSessionStoreTests: XCTestCase {
         XCTAssertEqual(store.phase, .finished)
         XCTAssertEqual(store.completedExerciseCount, 0)
         XCTAssertEqual(store.outcomes["paced"], .skipped)
+    }
+
+    func testVoiceEventsAreOrderedAndDuplicateActionsDoNotEmitAgain() {
+        let store = startedStore(plan: repetitionPlan(target: 2))
+
+        store.switchToManualCount()
+        XCTAssertEqual(store.latestVoiceEvent?.kind, .manualCountStarted)
+        XCTAssertEqual(store.latestVoiceEvent?.sequence, 1)
+        store.switchToManualCount()
+        XCTAssertEqual(store.latestVoiceEvent?.sequence, 1)
+
+        store.adjustManualCount(by: 2)
+        XCTAssertEqual(store.latestVoiceEvent?.kind, .repetitionTargetReached)
+        XCTAssertEqual(store.latestVoiceEvent?.sequence, 2)
+        store.confirmSet(at: start)
+        XCTAssertEqual(store.latestVoiceEvent?.kind, .setConfirmed)
+        XCTAssertEqual(store.latestVoiceEvent?.sequence, 3)
+        store.confirmSet(at: start)
+        XCTAssertEqual(store.latestVoiceEvent?.sequence, 3)
+    }
+
+    private func startedStore(plan: WorkoutPlan) -> WorkoutSessionStore {
+        let store = WorkoutSessionStore(plan: plan, now: start)
+        store.completeFirstExercisePreparation(at: start)
+        return store
     }
 
     private func repetitionPlan(target: Int = 4) -> WorkoutPlan {

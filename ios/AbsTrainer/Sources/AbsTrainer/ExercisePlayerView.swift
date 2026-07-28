@@ -113,7 +113,13 @@ struct ExercisePlayerView: View {
             audioCoordinator.onSafetyPause = {
                 store.pause()
             }
-            if !validationMode { audioCoordinator.start(plan: plan) }
+            if validationMode {
+                store.completeFirstExercisePreparation()
+            } else {
+                audioCoordinator.start(plan: plan) {
+                    store.completeFirstExercisePreparation()
+                }
+            }
             setFocus(.stateTitle)
             announceCurrentPhase()
         }
@@ -125,17 +131,21 @@ struct ExercisePlayerView: View {
         }
         .onChange(of: scenePhase) { phase in
             if phase == .active {
-                if !store.isPaused { store.tick() }
+                if store.phase != .finished, !store.isPaused {
+                    audioCoordinator.sceneDidBecomeInactive()
+                }
             } else if store.phase != .finished {
-                store.pause()
-                audioCoordinator.pause()
+                audioCoordinator.sceneDidBecomeInactive()
             }
         }
         .onChange(of: store.phase) { phase in
             lastAnnouncedSecond = nil
-            audioCoordinator.transition(to: phase, store: store)
+            audioCoordinator.synchronize(store: store)
             announceCurrentPhase()
             setFocus(phase == .finished ? nil : .stateTitle)
+        }
+        .onChange(of: store.latestVoiceEvent) { _ in
+            audioCoordinator.synchronize(store: store)
         }
         .onChange(of: store.isPaused) { isPaused in
             if isPaused { audioCoordinator.pause() }
@@ -210,6 +220,7 @@ struct ExercisePlayerView: View {
                     action: { presentConfirmation(.skipExercise, opener: .nextButton) }
                 )
                 .accessibilityIdentifier("session.exercise.skip")
+                .disabled(store.isPreparingFirstExercise)
 
                 Button(action: advanceFromExercise) {
                     Text(nextActionTitle)
@@ -220,6 +231,7 @@ struct ExercisePlayerView: View {
                         .clipShape(RoundedRectangle(cornerRadius: TempoTokens.Radius.button, style: .continuous))
                 }
                 .accessibilityFocused($focusedElement, equals: .nextButton)
+                .disabled(store.isPreparingFirstExercise)
             }
             .buttonStyle(.plain)
             .padding(.horizontal, TempoTokens.Space.outer)
@@ -463,14 +475,14 @@ struct ExercisePlayerView: View {
                         label: "Уменьшить счёт повторов",
                         isDisabled: store.currentCount == 0
                     ) {
-                        store.adjustManualCount(by: -1)
+                        adjustManualCount(by: -1)
                     }
                     manualCountButton(
                         symbol: "plus",
                         label: "Подтвердить ещё один повтор",
                         isDisabled: store.currentCount == store.currentItem.prescription.targetCount
                     ) {
-                        store.adjustManualCount(by: 1)
+                        adjustManualCount(by: 1)
                     }
                 }
             } else {
@@ -484,6 +496,7 @@ struct ExercisePlayerView: View {
                     .accessibilityIdentifier("session.active.manualCount")
             }
         }
+        .disabled(store.isPreparingFirstExercise)
     }
 
     private func manualCountButton(
@@ -505,6 +518,11 @@ struct ExercisePlayerView: View {
         }
         .accessibilityLabel(label)
         .disabled(isDisabled)
+    }
+
+    private func adjustManualCount(by delta: Int) {
+        store.adjustManualCount(by: delta)
+        audioCoordinator.synchronize(store: store)
     }
 
     private var activeCountdownLabel: some View {
