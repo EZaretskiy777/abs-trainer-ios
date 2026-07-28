@@ -50,6 +50,23 @@ final class AbsTrainerUITests: XCTestCase {
                 break
             }
 
+            let finishSet = app.buttons["Завершить набор"]
+            if finishSet.exists {
+                finishSet.tap()
+                let confirmation = app.descendants(matching: .any)["session.confirmation.finishSetEarly"]
+                XCTAssertTrue(confirmation.waitForExistence(timeout: 2))
+                app.buttons["session.confirmation.finishSetEarly.destructive"].tap()
+                if app.staticTexts["Темп\nвыдержан."].waitForExistence(timeout: 0.5) { break }
+                continue
+            }
+
+            let confirmSet = app.buttons["Подтвердить набор"]
+            if confirmSet.exists {
+                confirmSet.tap()
+                if app.staticTexts["Темп\nвыдержан."].waitForExistence(timeout: 0.5) { break }
+                continue
+            }
+
             let next = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Далее'")).firstMatch
             XCTAssertTrue(next.waitForExistence(timeout: 2))
             next.tap()
@@ -540,6 +557,39 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
+    func testAudioSettingsSummaryAndSessionMuteControl() throws {
+        let app = launchApp(viewport: CGSize(width: 393, height: 852))
+        let setupScroll = app.scrollViews["setup.scroll"]
+        let setup = app.buttons["Собрать тренировку"]
+        let music = app.switches["setup.audio.musicToggle"]
+        let voice = app.switches["setup.audio.voiceToggle"]
+        XCTAssertTrue(setup.waitForExistence(timeout: 5))
+        XCTAssertTrue(setupScroll.waitForExistence(timeout: 3))
+        scrollIntoView(
+            [music, voice],
+            in: app,
+            visibleFrame: visibleFrame(above: setup, in: app.windows.firstMatch),
+            scrollSurface: setupScroll
+        )
+        XCTAssertTrue(music.isHittable)
+        XCTAssertTrue(voice.exists)
+        let initialMusicValue = music.value as? String
+        music.tap()
+        XCTAssertNotEqual(music.value as? String, initialMusicValue)
+
+        setup.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["plan.audio.summary"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["plan.audio.edit"].exists)
+        app.buttons["Начать тренировку"].tap()
+
+        let sessionAudio = app.buttons["session.audio.toggle"]
+        XCTAssertTrue(sessionAudio.waitForExistence(timeout: 5))
+        let initialSessionValue = sessionAudio.value as? String
+        sessionAudio.tap()
+        XCTAssertNotEqual(sessionAudio.value as? String, initialSessionValue)
+    }
+
+    @MainActor
     private func launchApp(
         viewport: CGSize? = nil,
         contentSizeCategory: String? = nil,
@@ -714,20 +764,28 @@ final class AbsTrainerUITests: XCTestCase {
             let pause = app.buttons["session.pause"]
             XCTAssertTrue(pause.waitForExistence(timeout: 2))
             let next = app.buttons.matching(
-                NSPredicate(format: "label BEGINSWITH 'Далее' OR label == 'Завершить'")
+                NSPredicate(
+                    format: "label BEGINSWITH 'Далее' OR label == 'Завершить' OR label == 'Завершить набор' OR label == 'Подтвердить набор'"
+                )
             ).firstMatch
             XCTAssertTrue(next.waitForExistence(timeout: 2))
             assertCriticalControls([pause, next], in: container)
             assertNonOverlapping(pause.frame, next.frame)
-            let countdown = app.staticTexts["session.active.timer"]
-            let countdownContext = app.staticTexts["session.active.timerContext"]
-            XCTAssertTrue(countdown.waitForExistence(timeout: 2))
-            XCTAssertTrue(countdownContext.waitForExistence(timeout: 2))
             let activeVisibleFrame = visibleFrame(above: pause, in: container)
-            scrollIntoView([countdown, countdownContext], in: app, visibleFrame: activeVisibleFrame)
-            assertContained(countdown.frame, in: activeVisibleFrame)
-            assertContained(countdownContext.frame, in: activeVisibleFrame)
-            assertCountdownComposition(countdown.frame, countdownContext.frame)
+            let repetitionCount = app.staticTexts["session.active.repetitionCount"]
+            if repetitionCount.waitForExistence(timeout: 0.5) {
+                scrollIntoView([repetitionCount], in: app, visibleFrame: activeVisibleFrame)
+                assertContained(repetitionCount.frame, in: activeVisibleFrame)
+            } else {
+                let countdown = app.staticTexts["session.active.timer"]
+                let countdownContext = app.staticTexts["session.active.timerContext"]
+                XCTAssertTrue(countdown.waitForExistence(timeout: 2))
+                XCTAssertTrue(countdownContext.waitForExistence(timeout: 2))
+                scrollIntoView([countdown, countdownContext], in: app, visibleFrame: activeVisibleFrame)
+                assertContained(countdown.frame, in: activeVisibleFrame)
+                assertContained(countdownContext.frame, in: activeVisibleFrame)
+                assertCountdownComposition(countdown.frame, countdownContext.frame)
+            }
             if !capturedActive {
                 attachScreenshot(named: "\(screenshotPrefix)-03-active")
                 capturedActive = true
@@ -740,6 +798,13 @@ final class AbsTrainerUITests: XCTestCase {
                 XCTAssertTrue(finishConfirmation.isHittable)
                 finishConfirmation.tap()
                 break
+            }
+            let setConfirmation = app.descendants(matching: .any)["session.confirmation.finishSetEarly"]
+            if setConfirmation.waitForExistence(timeout: 0.5) {
+                let finishSetConfirmation = app.buttons["session.confirmation.finishSetEarly.destructive"]
+                XCTAssertTrue(finishSetConfirmation.isHittable)
+                finishSetConfirmation.tap()
+                if app.buttons["Повторить тренировку"].waitForExistence(timeout: 0.5) { break }
             }
         }
 

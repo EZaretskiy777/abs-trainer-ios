@@ -2,6 +2,8 @@ import SwiftUI
 
 struct WorkoutPlanView: View {
     let plan: WorkoutPlan
+    @ObservedObject var audioPreferences: WorkoutAudioPreferences
+    let onEditAudio: () -> Void
     let onStart: () -> Void
     @Environment(\.dismiss) private var dismiss
     @ScaledMetric(relativeTo: .largeTitle) private var planTitleSize = 36
@@ -12,6 +14,7 @@ struct WorkoutPlanView: View {
             VStack(alignment: .leading, spacing: TempoTokens.Space.xl) {
                 topBar
                 summary
+                audioSummary
                 LazyVStack(spacing: 0) {
                     ForEach(plan.items) { item in
                         workoutRow(item)
@@ -94,6 +97,51 @@ struct WorkoutPlanView: View {
             .clipShape(Capsule())
     }
 
+    private var audioSummary: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: TempoTokens.Space.md) {
+                audioSummaryText
+                Spacer(minLength: TempoTokens.Space.xs)
+                audioEditButton
+            }
+            VStack(alignment: .leading, spacing: TempoTokens.Space.sm) {
+                audioSummaryText
+                audioEditButton
+            }
+        }
+        .padding(.vertical, TempoTokens.Space.md)
+        .overlay(alignment: .top) {
+            Rectangle().fill(TempoTokens.ColorToken.carbon.opacity(0.16)).frame(height: 1)
+        }
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(TempoTokens.ColorToken.carbon.opacity(0.16)).frame(height: 1)
+        }
+        .accessibilityIdentifier("plan.audio.summary")
+    }
+
+    private var audioSummaryText: some View {
+        VStack(alignment: .leading, spacing: TempoTokens.Space.xxs) {
+            Text(audioPreferences.musicEnabled
+                 ? "Музыка · \(Int((audioPreferences.musicVolume * 100).rounded()))%"
+                 : "Музыка выключена")
+                .font(.body.weight(.semibold))
+            Text(audioPreferences.voiceCoachEnabled
+                 ? "Голосовой тренер включён"
+                 : "Голосовой тренер выключен")
+                .font(.caption)
+                .foregroundStyle(TempoTokens.ColorToken.muted)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var audioEditButton: some View {
+        Button("Изменить", action: onEditAudio)
+            .font(.body.weight(.semibold))
+            .frame(minHeight: TempoTokens.Size.minimumTap)
+            .accessibilityLabel("Изменить настройки звука тренировки")
+            .accessibilityIdentifier("plan.audio.edit")
+    }
+
     private func workoutRow(_ item: WorkoutItem) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: TempoTokens.Space.md) {
             Text(String(format: "%02d", item.order))
@@ -113,7 +161,7 @@ struct WorkoutPlanView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: TempoTokens.Space.xs)
-            Text(WorkoutSessionStore.format(seconds: item.durationSec))
+            Text(prescriptionTitle(item.prescription))
                 .font(.subheadline.weight(.semibold).monospacedDigit())
                 .foregroundStyle(TempoTokens.ColorToken.carbon)
                 .fixedSize()
@@ -125,6 +173,31 @@ struct WorkoutPlanView: View {
                 .frame(height: 1)
         }
         .accessibilityElement(children: .combine)
+        .accessibilityLabel(workoutRowAccessibilityLabel(item))
+    }
+
+    private func prescriptionTitle(_ prescription: WorkoutPrescription) -> String {
+        switch prescription {
+        case let .timeBased(duration):
+            return "\(duration) сек"
+        case let .repetitionBased(target, unit, _, _):
+            return unit == .perSideAlternating
+                ? "\(target) повторов · по \(target / 2)"
+                : "\(target) повторов"
+        }
+    }
+
+    private func workoutRowAccessibilityLabel(_ item: WorkoutItem) -> String {
+        let prescription: String
+        switch item.prescription {
+        case let .timeBased(duration):
+            prescription = "Удержание, \(duration) секунд"
+        case let .repetitionBased(target, unit, _, _):
+            prescription = unit == .perSideAlternating
+                ? "\(target) повторов, по \(target / 2) на каждую сторону; каждое движение одной стороны считается следующим повтором"
+                : "\(target) повторов, полный цикл движения считается одним повтором"
+        }
+        return "\(item.order). \(item.exercise.title). \(prescription). Отдых \(item.restAfterSec) секунд"
     }
 
     private var zonesTitle: String {
@@ -135,6 +208,11 @@ struct WorkoutPlanView: View {
 
 #Preview("План") {
     NavigationStack {
-        WorkoutPlanView(plan: .preview, onStart: {})
+        WorkoutPlanView(
+            plan: .preview,
+            audioPreferences: WorkoutAudioPreferences(),
+            onEditAudio: {},
+            onStart: {}
+        )
     }
 }

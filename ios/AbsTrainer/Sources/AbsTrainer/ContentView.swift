@@ -17,6 +17,7 @@ struct ContentView: View {
     @State private var isGenerating = false
     @State private var generationError: String?
     @State private var wasExerciseLibraryOpen = false
+    @StateObject private var audioPreferences = WorkoutAudioPreferences()
     @ScaledMetric(relativeTo: .largeTitle) private var displayTitleSize = 42
     @AccessibilityFocusState private var setupTitleFocused: Bool
     @AccessibilityFocusState private var exerciseLibraryButtonFocused: Bool
@@ -49,9 +50,12 @@ struct ContentView: View {
                 switch route {
                 case .plan:
                     if let plan {
-                        WorkoutPlanView(plan: plan) {
-                            path.append(.session)
-                        }
+                        WorkoutPlanView(
+                            plan: plan,
+                            audioPreferences: audioPreferences,
+                            onEditAudio: { path.removeLast() },
+                            onStart: { path.append(.session) }
+                        )
                     } else {
                         Color.clear.onAppear { path.removeAll() }
                     }
@@ -59,6 +63,7 @@ struct ContentView: View {
                     if let plan {
                         ExercisePlayerView(
                             plan: plan,
+                            audioPreferences: audioPreferences,
                             onRepeat: { path = [.plan] },
                             onNewWorkout: {
                                 self.plan = nil
@@ -102,6 +107,7 @@ struct ContentView: View {
                     durationPicker
                     zonePicker
                     intensityPicker
+                    audioSettings
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -111,6 +117,7 @@ struct ContentView: View {
                 durationPicker
                 zonePicker
                 intensityPicker
+                audioSettings
             }
         }
     }
@@ -200,6 +207,56 @@ struct ContentView: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Интенсивность упражнений")
         .accessibilityHint("Выберите один вариант. Интенсивность меняет сложность упражнений.")
+    }
+
+    private var audioSettings: some View {
+        VStack(alignment: .leading, spacing: TempoTokens.Space.md) {
+            sectionHeader(title: "Звук тренировки", value: "Локально")
+                .accessibilityIdentifier("setup.audio.section")
+
+            Toggle(isOn: $audioPreferences.musicEnabled) {
+                VStack(alignment: .leading, spacing: TempoTokens.Space.xxs) {
+                    Text("Музыка тренировки").font(.body.weight(.semibold))
+                    Text("Оригинальный ритм").font(.caption).foregroundStyle(TempoTokens.ColorToken.muted)
+                }
+            }
+            .frame(minHeight: 64)
+            .accessibilityValue(audioPreferences.musicEnabled ? "Включена" : "Выключена")
+            .accessibilityIdentifier("setup.audio.musicToggle")
+
+            VStack(alignment: .leading, spacing: TempoTokens.Space.xs) {
+                HStack {
+                    Text("Громкость музыки").font(.body.weight(.semibold))
+                    Spacer()
+                    Text("\(Int((audioPreferences.musicVolume * 100).rounded()))%")
+                        .font(.caption.weight(.semibold).monospacedDigit())
+                }
+                Slider(value: $audioPreferences.musicVolume, in: 0...1, step: 0.05)
+                    .disabled(!audioPreferences.musicEnabled || isGenerating)
+                    .accessibilityLabel("Громкость музыки")
+                    .accessibilityValue("\(Int((audioPreferences.musicVolume * 100).rounded())) процентов")
+                    .accessibilityHint("Настройте громкость фоновой музыки")
+                    .accessibilityIdentifier("setup.audio.musicVolume")
+            }
+            .frame(minHeight: 64)
+
+            Toggle(isOn: $audioPreferences.voiceCoachEnabled) {
+                VStack(alignment: .leading, spacing: TempoTokens.Space.xxs) {
+                    Text("Голосовой тренер").font(.body.weight(.semibold))
+                    Text("Переходы и темп").font(.caption).foregroundStyle(TempoTokens.ColorToken.muted)
+                }
+            }
+            .frame(minHeight: 64)
+            .accessibilityValue(audioPreferences.voiceCoachEnabled ? "Включён" : "Выключен")
+            .accessibilityIdentifier("setup.audio.voiceToggle")
+
+            Text("Музыка и голос работают без сети. Системные подсказки VoiceOver всегда важнее голосового тренера.")
+                .font(.caption)
+                .foregroundStyle(TempoTokens.ColorToken.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .disabled(isGenerating)
+        .opacity(isGenerating ? 0.38 : 1)
     }
 
     @ViewBuilder

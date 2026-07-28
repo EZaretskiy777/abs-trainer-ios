@@ -4,6 +4,7 @@ struct FinishView: View {
     let plan: WorkoutPlan
     let elapsedSeconds: Int
     let completedCount: Int
+    let skippedCount: Int
     let onRepeat: () -> Void
     let onNewWorkout: () -> Void
     @ScaledMetric(relativeTo: .largeTitle) private var finishTitleSize = 42
@@ -27,7 +28,9 @@ struct FinishView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("finish.title")
                     .accessibilityFocused($finishTitleFocused)
-                Text("Все упражнения выполнены. Результат сохранён только на этом устройстве.")
+                Text(skippedCount == 0
+                     ? "Все упражнения выполнены. Результат сохранён только на этом устройстве."
+                     : "Тренировка завершена с пропусками. Результат сохранён только на этом устройстве.")
                     .font(.body)
                     .foregroundStyle(TempoTokens.ColorToken.muted)
                     .fixedSize(horizontal: false, vertical: true)
@@ -58,6 +61,11 @@ struct FinishView: View {
                 .overlay(alignment: .bottom) {
                     Rectangle().fill(TempoTokens.ColorToken.carbon.opacity(0.16)).frame(height: 1)
                 }
+
+                Text("Пропущено: \(skippedCount)")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(TempoTokens.ColorToken.muted)
+                    .accessibilityIdentifier("finish.skippedResult")
             }
             .padding(.horizontal, TempoTokens.Space.outer)
             .padding(.top, TempoTokens.Space.huge)
@@ -126,7 +134,8 @@ struct FinishView: View {
     FinishView(
         plan: .preview,
         elapsedSeconds: 604,
-        completedCount: WorkoutPlan.preview.items.count,
+        completedCount: 9,
+        skippedCount: 1,
         onRepeat: {},
         onNewWorkout: {}
     )

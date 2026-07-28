@@ -18,7 +18,7 @@ struct WorkoutGenerator {
             intensity: intensity
         ).normalized
         let pool = rankedExercises(for: setup)
-        let items = closestItems(to: setup.targetDurationMin * 60, from: pool)
+        let items = closestItems(to: setup.targetDurationMin * 60, from: pool, setup: setup)
 
         return WorkoutPlan(
             id: UUID().uuidString,
@@ -111,21 +111,39 @@ struct WorkoutGenerator {
         return result
     }
 
-    private func closestItems(to targetSeconds: Int, from pool: [Exercise]) -> [WorkoutItem] {
+    private func closestItems(
+        to targetSeconds: Int,
+        from pool: [Exercise],
+        setup: WorkoutSetup
+    ) -> [WorkoutItem] {
         guard !pool.isEmpty else { return [] }
         var candidates: [WorkoutItem] = []
         var bestCount = 1
         var bestDuration = Int.max
-        let minimumWork = max(1, pool.map(\.defaultDurationSec).filter { $0 > 0 }.min() ?? 1)
+        let minimumWork = max(
+            1,
+            pool.map {
+                ExerciseCatalog.prescription(
+                    for: $0,
+                    targetDurationMin: setup.targetDurationMin,
+                    intensity: setup.intensity
+                ).estimatedDurationSec
+            }.filter { $0 > 0 }.min() ?? 1
+        )
         let maximumItems = max(1, (targetSeconds + 60) / minimumWork + pool.count + 1)
 
         for index in 0..<maximumItems {
             let exercise = pool[index % pool.count]
+            let prescription = ExerciseCatalog.prescription(
+                for: exercise,
+                targetDurationMin: setup.targetDurationMin,
+                intensity: setup.intensity
+            )
             candidates.append(
                 WorkoutItem(
                     id: UUID().uuidString,
                     exercise: exercise,
-                    durationSec: exercise.defaultDurationSec,
+                    prescription: prescription,
                     restAfterSec: exercise.restAfterSec,
                     order: index + 1
                 )

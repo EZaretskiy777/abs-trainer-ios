@@ -200,11 +200,15 @@ struct InverseIconButton: View {
 enum SessionConfirmationVariant: Equatable {
     case exitSession
     case finishLastExerciseEarly
+    case finishRepetitionEarly
+    case skipExercise
 
     var title: String {
         switch self {
         case .exitSession: return "Завершить тренировку?"
         case .finishLastExerciseEarly: return "Завершить последнее упражнение?"
+        case .finishRepetitionEarly: return "Завершить набор сейчас?"
+        case .skipExercise: return "Пропустить упражнение?"
         }
     }
 
@@ -212,6 +216,8 @@ enum SessionConfirmationVariant: Equatable {
         switch self {
         case .exitSession: return "Прогресс этой сессии не сохранится."
         case .finishLastExerciseEarly: return "До конца упражнения ещё осталось время."
+        case .finishRepetitionEarly: return "Фактический счёт будет сохранён как досрочное завершение."
+        case .skipExercise: return "Упражнение будет отмечено как пропущенное."
         }
     }
 
@@ -219,6 +225,8 @@ enum SessionConfirmationVariant: Equatable {
         switch self {
         case .exitSession: return "Продолжить тренировку"
         case .finishLastExerciseEarly: return "Продолжить упражнение"
+        case .finishRepetitionEarly: return "Продолжить набор"
+        case .skipExercise: return "Не пропускать"
         }
     }
 
@@ -226,6 +234,8 @@ enum SessionConfirmationVariant: Equatable {
         switch self {
         case .exitSession: return "Завершить тренировку"
         case .finishLastExerciseEarly: return "Завершить сейчас"
+        case .finishRepetitionEarly: return "Завершить набор"
+        case .skipExercise: return "Пропустить упражнение"
         }
     }
 
@@ -233,6 +243,8 @@ enum SessionConfirmationVariant: Equatable {
         switch self {
         case .exitSession: return "session.confirmation.exit"
         case .finishLastExerciseEarly: return "session.confirmation.finishEarly"
+        case .finishRepetitionEarly: return "session.confirmation.finishSetEarly"
+        case .skipExercise: return "session.confirmation.skipExercise"
         }
     }
 }
@@ -331,7 +343,7 @@ struct SessionConfirmationModal: View {
 }
 
 enum DurationDialContract {
-    static let allowedValues = [5, 10, 15]
+    static let allowedValues = Array(5...15)
 
     static func nearestIndex(to value: Int, in values: [Int] = allowedValues) -> Int {
         values.indices.min { lhs, rhs in
@@ -435,14 +447,14 @@ struct TempoDurationDial: View {
     private var stepButtons: some View {
         stepButton(
             symbol: "minus",
-            label: "Уменьшить длительность на 5 минут",
+            label: "Уменьшить длительность на одну минуту",
             identifier: "setup.durationDial.decrement",
             isAvailable: currentIndex > 0
         ) { select(index: currentIndex - 1) }
 
         stepButton(
             symbol: "plus",
-            label: "Увеличить длительность на 5 минут",
+            label: "Увеличить длительность на одну минуту",
             identifier: "setup.durationDial.increment",
             isAvailable: currentIndex < allowedValues.count - 1
         ) { select(index: currentIndex + 1) }
@@ -519,7 +531,7 @@ struct TempoDurationDial: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Длительность тренировки")
         .accessibilityValue("\(value) минут")
-        .accessibilityHint("Смахните вверх или вниз, чтобы изменить на 5 минут. Также доступны кнопки уменьшения и увеличения.")
+        .accessibilityHint("Смахните вверх или вниз, чтобы изменить на одну минуту. Также доступны кнопки уменьшения и увеличения.")
         .accessibilityIdentifier("setup.durationDial")
         .accessibilityAdjustableAction { direction in
             switch direction {

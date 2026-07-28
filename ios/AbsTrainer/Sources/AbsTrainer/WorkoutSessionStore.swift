@@ -16,16 +16,23 @@ final class WorkoutSessionStore: ObservableObject {
     @Published private(set) var remainingSeconds: Int
     @Published private(set) var completedExerciseCount = 0
     @Published private(set) var isPaused = false
+    @Published private(set) var currentCount = 0
+    @Published private(set) var isManualCount = false
+    @Published private(set) var isAwaitingSetConfirmation = false
+    @Published private(set) var outcomes: [String: WorkoutOutcome] = [:]
 
     private let sessionStartedAt: Date
     private var deadline: Date
     private var pausedRemaining: TimeInterval?
+    private var exerciseStartedAt: Date
+    private var pausedActiveElapsed: TimeInterval?
     private var finishedAt: Date?
 
     init(plan: WorkoutPlan, now: Date = Date()) {
         precondition(!plan.items.isEmpty, "WorkoutSessionStore requires a non-empty plan")
         self.plan = plan
         sessionStartedAt = now
+        exerciseStartedAt = now
         remainingSeconds = plan.items[0].durationSec
         deadline = now.addingTimeInterval(TimeInterval(plan.items[0].durationSec))
     }
@@ -48,11 +55,15 @@ final class WorkoutSessionStore: ObservableObject {
 
     func tick(at now: Date = Date()) {
         guard phase != .finished, !isPaused else { return }
+        if phase == .exercise, case .repetitionBased = currentItem.prescription {
+            tickRepetition(at: now)
+            return
+        }
         while phase != .finished, now >= deadline {
             let transitionDate = deadline
             switch phase {
             case .exercise:
-                completeExercise(at: transitionDate)
+                completeExercise(at: transitionDate, outcome: .completed)
             case .rest:
                 startNextExercise(at: transitionDate)
             case .finished:
@@ -65,10 +76,13 @@ final class WorkoutSessionStore: ObservableObject {
     }
 
     func pause(at now: Date = Date()) {
-        guard phase == .exercise, !isPaused else { return }
+        guard phase != .finished, !isPaused else { return }
         tick(at: now)
-        guard phase == .exercise else { return }
+        guard phase != .finished else { return }
         pausedRemaining = max(0, deadline.timeIntervalSince(now))
+        if phase == .exercise, case .repetitionBased = currentItem.prescription {
+            pausedActiveElapsed = max(0, now.timeIntervalSince(exerciseStartedAt))
+        }
         isPaused = true
     }
 
@@ -77,13 +91,43 @@ final class WorkoutSessionStore: ObservableObject {
         let interval = pausedRemaining ?? TimeInterval(remainingSeconds)
         remainingSeconds = Int(ceil(interval))
         deadline = now.addingTimeInterval(interval)
+        if let activeElapsed = pausedActiveElapsed {
+            exerciseStartedAt = now.addingTimeInterval(-activeElapsed)
+        }
         pausedRemaining = nil
+        pausedActiveElapsed = nil
         isPaused = false
     }
 
     func skipExercise(at now: Date = Date()) {
         guard phase == .exercise else { return }
-        completeExercise(at: now)
+        completeExercise(at: now, outcome: .skipped)
+    }
+
+    func completeCurrentEarly(at now: Date = Date()) {
+        guard phase == .exercise else { return }
+        completeExercise(at: now, outcome: .completedEarly(actualDisplayedCount: currentCount))
+    }
+
+    func confirmSet(at now: Date = Date()) {
+        guard phase == .exercise,
+              case .repetitionBased = currentItem.prescription,
+              isAwaitingSetConfirmation,
+              outcomes[currentItem.id] == nil else { return }
+        completeExercise(at: now, outcome: .completed)
+    }
+
+    func switchToManualCount() {
+        guard phase == .exercise, case .repetitionBased = currentItem.prescription else { return }
+        isManualCount = true
+        isAwaitingSetConfirmation = currentCount >= (currentItem.prescription.targetCount ?? .max)
+    }
+
+    func adjustManualCount(by delta: Int) {
+        guard isManualCount,
+              let target = currentItem.prescription.targetCount else { return }
+        currentCount = min(target, max(0, currentCount + delta))
+        isAwaitingSetConfirmation = currentCount == target
     }
 
     func skipRest(at now: Date = Date()) {
@@ -91,10 +135,15 @@ final class WorkoutSessionStore: ObservableObject {
         startNextExercise(at: now)
     }
 
-    private func completeExercise(at now: Date) {
-        completedExerciseCount = min(completedExerciseCount + 1, plan.items.count)
+    private func completeExercise(at now: Date, outcome: WorkoutOutcome) {
+        guard outcomes[currentItem.id] == nil else { return }
+        outcomes[currentItem.id] = outcome
+        if outcome != .skipped {
+            completedExerciseCount = min(completedExerciseCount + 1, plan.items.count)
+        }
         isPaused = false
         pausedRemaining = nil
+        pausedActiveElapsed = nil
 
         guard nextItem != nil else {
             remainingSeconds = 0
@@ -124,8 +173,27 @@ final class WorkoutSessionStore: ObservableObject {
 
         currentIndex += 1
         phase = .exercise
+        currentCount = 0
+        isManualCount = false
+        isAwaitingSetConfirmation = false
+        exerciseStartedAt = now
         remainingSeconds = currentItem.durationSec
         deadline = now.addingTimeInterval(TimeInterval(currentItem.durationSec))
+    }
+
+    private func tickRepetition(at now: Date) {
+        guard !isManualCount,
+              !isAwaitingSetConfirmation,
+              let target = currentItem.prescription.targetCount,
+              let cadence = currentItem.prescription.cadenceMillisPerCount else { return }
+        let elapsed = max(0, now.timeIntervalSince(exerciseStartedAt))
+        let plannedCount = min(target, Int(floor(elapsed * 1_000 / Double(cadence))))
+        currentCount = max(currentCount, plannedCount)
+        remainingSeconds = max(0, currentItem.durationSec - Int(floor(elapsed)))
+        if currentCount == target {
+            isAwaitingSetConfirmation = true
+            remainingSeconds = 0
+        }
     }
 
     nonisolated static func format(seconds: Int) -> String {

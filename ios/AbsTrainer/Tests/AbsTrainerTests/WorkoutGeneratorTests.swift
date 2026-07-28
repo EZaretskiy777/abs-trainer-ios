@@ -91,8 +91,14 @@ final class WorkoutGeneratorTests: XCTestCase {
         XCTAssertEqual(light.items.first?.exercise.difficulty, .beginner)
         XCTAssertEqual(balanced.items.prefix(2).map(\.exercise.difficulty), [.beginner, .intermediate])
         XCTAssertEqual(high.items.prefix(2).map(\.exercise.difficulty), [.intermediate, .advanced])
-        XCTAssertTrue([light, balanced, high].flatMap(\.items).allSatisfy {
-            $0.durationSec == $0.exercise.defaultDurationSec && $0.restAfterSec == $0.exercise.restAfterSec
+        XCTAssertTrue([light, balanced, high].allSatisfy { plan in
+            plan.items.allSatisfy {
+                $0.prescription == ExerciseCatalog.prescription(
+                    for: $0.exercise,
+                    targetDurationMin: plan.targetDurationMin,
+                    intensity: plan.intensity
+                ) && $0.restAfterSec == $0.exercise.restAfterSec
+            }
         })
     }
 
@@ -193,6 +199,19 @@ final class WorkoutGeneratorTests: XCTestCase {
         XCTAssertEqual(object["schemaVersion"] as? Int, 2)
         XCTAssertEqual(object["durationSec"] as? Int, 40)
         XCTAssertNotNil(object["prescription"])
+    }
+
+    func testOverflowingRepetitionPrescriptionFailsWithControlledDecodeError() throws {
+        let payload: [String: Any] = [
+            "kind": "repetitionBased",
+            "targetCount": Int.max,
+            "countingUnit": "fullCycle",
+            "cadenceMillisPerCount": 2_000,
+            "estimatedDurationSec": Int.max
+        ]
+        let data = try JSONSerialization.data(withJSONObject: payload)
+
+        XCTAssertThrowsError(try JSONDecoder().decode(WorkoutPrescription.self, from: data))
     }
 
     func testEmptyCatalogReturnsControlledEmptyPlan() {

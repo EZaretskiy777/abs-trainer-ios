@@ -6,6 +6,7 @@ struct ExercisePlayerView: View {
         case stateTitle
         case exitButton
         case pauseButton
+        case audioButton
         case nextButton
         case pauseDialog
     }
@@ -15,6 +16,7 @@ struct ExercisePlayerView: View {
     let onNewWorkout: () -> Void
 
     @StateObject private var store: WorkoutSessionStore
+    @StateObject private var audioCoordinator: WorkoutAudioCoordinator
     @State private var confirmation: SessionConfirmationVariant?
     @State private var confirmationOpener: FocusElement?
     @State private var confirmationTransitioning = false
@@ -37,11 +39,19 @@ struct ExercisePlayerView: View {
         #endif
     }
 
-    init(plan: WorkoutPlan, onRepeat: @escaping () -> Void, onNewWorkout: @escaping () -> Void) {
+    init(
+        plan: WorkoutPlan,
+        audioPreferences: WorkoutAudioPreferences,
+        onRepeat: @escaping () -> Void,
+        onNewWorkout: @escaping () -> Void
+    ) {
         self.plan = plan
         self.onRepeat = onRepeat
         self.onNewWorkout = onNewWorkout
         _store = StateObject(wrappedValue: WorkoutSessionStore(plan: plan))
+        _audioCoordinator = StateObject(
+            wrappedValue: WorkoutAudioCoordinator(preferences: audioPreferences)
+        )
     }
 
     var body: some View {
@@ -58,6 +68,7 @@ struct ExercisePlayerView: View {
                         plan: plan,
                         elapsedSeconds: store.elapsedSeconds,
                         completedCount: store.completedExerciseCount,
+                        skippedCount: store.outcomes.values.filter { $0 == .skipped }.count,
                         onRepeat: onRepeat,
                         onNewWorkout: onNewWorkout
                     )
@@ -99,25 +110,39 @@ struct ExercisePlayerView: View {
         )
         .animation(.easeOut(duration: 0.12), value: store.isPaused)
         .onAppear {
+            audioCoordinator.onSafetyPause = {
+                store.pause()
+            }
+            if !validationMode { audioCoordinator.start(plan: plan) }
             setFocus(.stateTitle)
             announceCurrentPhase()
         }
         .onReceive(Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()) { now in
             guard !validationMode else { return }
             store.tick(at: now)
+            audioCoordinator.tick(store: store)
             announceCountdownIfNeeded()
         }
         .onChange(of: scenePhase) { phase in
-            if phase == .active { store.tick() }
+            if phase == .active {
+                if !store.isPaused { store.tick() }
+            } else if store.phase != .finished {
+                store.pause()
+                audioCoordinator.pause()
+            }
         }
         .onChange(of: store.phase) { phase in
             lastAnnouncedSecond = nil
+            audioCoordinator.transition(to: phase, store: store)
             announceCurrentPhase()
             setFocus(phase == .finished ? nil : .stateTitle)
         }
         .onChange(of: store.isPaused) { isPaused in
+            if isPaused { audioCoordinator.pause() }
+            else { audioCoordinator.resume() }
             setFocus(isPaused ? .pauseDialog : .pauseButton)
         }
+        .onDisappear { audioCoordinator.stop() }
     }
 
     private var exerciseScreen: some View {
@@ -142,12 +167,23 @@ struct ExercisePlayerView: View {
                     ExerciseMediaAperture(exercise: store.currentItem.exercise)
 
                     if validationMode {
-                        activeCountdownComposition
+                        activeProgressComposition
                     } else {
-                        activeCountdownComposition
+                        activeProgressComposition
                             .accessibilityElement(children: .ignore)
-                            .accessibilityLabel("Осталось \(store.remainingSeconds) секунд в этом упражнении")
+                            .accessibilityLabel(activeProgressAccessibilityLabel)
                             .accessibilityIdentifier("session.active.countdownGroup")
+                    }
+
+                    if case .repetitionBased = store.currentItem.prescription {
+                        repetitionControls
+                    }
+
+                    if let statusText = audioCoordinator.statusText {
+                        Text(statusText)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(inverseSecondaryColor)
+                            .accessibilityIdentifier("session.audio.status")
                     }
                 }
                 .padding(.horizontal, TempoTokens.Space.outer)
@@ -166,6 +202,14 @@ struct ExercisePlayerView: View {
                 )
                 .accessibilityIdentifier("session.pause")
                 .accessibilityFocused($focusedElement, equals: .pauseButton)
+
+                InverseIconButton(
+                    symbol: "forward.end.fill",
+                    size: TempoTokens.Size.pauseControl,
+                    accessibilityLabel: "Пропустить упражнение",
+                    action: { presentConfirmation(.skipExercise, opener: .nextButton) }
+                )
+                .accessibilityIdentifier("session.exercise.skip")
 
                 Button(action: advanceFromExercise) {
                     Text(nextActionTitle)
@@ -199,37 +243,51 @@ struct ExercisePlayerView: View {
             Text(String(format: "%02d / %02d", store.currentIndex + 1, plan.items.count))
                 .font(.subheadline.weight(.semibold).monospacedDigit())
             Spacer()
-            Color.clear.frame(width: 48, height: 48)
+            InverseIconButton(
+                symbol: audioCoordinator.sessionMuted ? "speaker.slash.fill" : "speaker.wave.2.fill",
+                size: TempoTokens.Size.iconControl,
+                accessibilityLabel: audioCoordinator.sessionMuted
+                    ? "Включить звук этой тренировки"
+                    : "Выключить звук этой тренировки"
+            ) {
+                audioCoordinator.setSessionMuted(!audioCoordinator.sessionMuted)
+            }
+            .accessibilityIdentifier("session.audio.toggle")
+            .accessibilityValue(audioCoordinator.sessionMuted ? "Звук выключен" : "Звук включён")
+            .accessibilityFocused($focusedElement, equals: .audioButton)
         }
         .padding(.horizontal, TempoTokens.Space.sm)
     }
 
     private var restScreen: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: TempoTokens.Space.xl) {
-                Text("Пауза между упражнениями")
-                    .font(.caption.weight(.semibold))
-                    .textCase(.uppercase)
-                    .tracking(1.2)
-                    .foregroundStyle(inverseSecondaryColor)
-                Text("Вдох.\nМедленный\nвыдох.")
-                    .font(.system(size: restTitleSize, weight: .bold))
-                    .foregroundStyle(TempoTokens.SemanticColor.inversePrimary.color)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityFocused($focusedElement, equals: .stateTitle)
-                Text("\(store.remainingSeconds)")
-                    .font(.system(size: restTimerSize, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(TempoTokens.SemanticColor.inversePrimary.color)
-                    .minimumScaleFactor(0.75)
-                    .lineLimit(1)
-                Capsule()
-                    .fill(TempoTokens.SemanticColor.inverseDivider.color)
-                    .frame(height: 2)
-                    .padding(.vertical, TempoTokens.Space.md)
-                    .accessibilityHidden(true)
+        VStack(spacing: 0) {
+            playerTopBar
+            ScrollView {
+                VStack(alignment: .leading, spacing: TempoTokens.Space.xl) {
+                    Text("Пауза между упражнениями")
+                        .font(.caption.weight(.semibold))
+                        .textCase(.uppercase)
+                        .tracking(1.2)
+                        .foregroundStyle(inverseSecondaryColor)
+                    Text("Вдох.\nМедленный\nвыдох.")
+                        .font(.system(size: restTitleSize, weight: .bold))
+                        .foregroundStyle(TempoTokens.SemanticColor.inversePrimary.color)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityFocused($focusedElement, equals: .stateTitle)
+                    Text("\(store.remainingSeconds)")
+                        .font(.system(size: restTimerSize, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(TempoTokens.SemanticColor.inversePrimary.color)
+                        .minimumScaleFactor(0.75)
+                        .lineLimit(1)
+                    Capsule()
+                        .fill(TempoTokens.SemanticColor.inverseDivider.color)
+                        .frame(height: 2)
+                        .padding(.vertical, TempoTokens.Space.md)
+                        .accessibilityHidden(true)
+                }
+                .padding(.horizontal, TempoTokens.Space.outer)
+                .padding(.vertical, TempoTokens.Space.xl)
             }
-            .padding(.horizontal, TempoTokens.Space.outer)
-            .padding(.vertical, TempoTokens.Space.xl)
         }
         .foregroundStyle(.white)
         .tint(.white)
@@ -305,11 +363,22 @@ struct ExercisePlayerView: View {
     }
 
     private func nextDuration(_ item: WorkoutItem) -> some View {
-        Text(WorkoutSessionStore.format(seconds: item.durationSec))
+        Text(prescriptionDisplay(item.prescription))
             .font(.headline.monospacedDigit())
             .foregroundStyle(TempoTokens.SemanticColor.inversePrimary.color)
             .fixedSize()
             .accessibilityIdentifier("session.rest.nextDuration")
+    }
+
+    private func prescriptionDisplay(_ prescription: WorkoutPrescription) -> String {
+        switch prescription {
+        case let .timeBased(duration):
+            return "\(duration) сек"
+        case let .repetitionBased(target, unit, _, _):
+            return unit == .perSideAlternating
+                ? "\(target) повторов · по \(target / 2)"
+                : "\(target) повторов"
+        }
     }
 
     private var activeCountdown: some View {
@@ -334,6 +403,108 @@ struct ExercisePlayerView: View {
                 activeCountdownLabel
             }
         }
+    }
+
+    @ViewBuilder
+    private var activeProgressComposition: some View {
+        switch store.currentItem.prescription {
+        case .timeBased:
+            activeCountdownComposition
+        case let .repetitionBased(target, unit, _, _):
+            VStack(alignment: .leading, spacing: TempoTokens.Space.xs) {
+                Text(store.isManualCount
+                     ? "Подтверждено вручную: \(store.currentCount) из \(target)"
+                     : "Плановый счёт: \(store.currentCount) из \(target)")
+                    .font(.system(size: activeTimerSize, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(TempoTokens.SemanticColor.inversePrimary.color)
+                    .minimumScaleFactor(0.72)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("session.active.repetitionCount")
+                Text(unit == .perSideAlternating
+                     ? "По \(target / 2) на сторону. Каждая смена стороны — следующий номер."
+                     : "Каждый полный цикл — один повтор")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(inverseSecondaryColor)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Счёт задаёт темп и не распознаёт движения.")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(inverseSecondaryColor)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("session.active.pacingDisclosure")
+            }
+        }
+    }
+
+    private var activeProgressAccessibilityLabel: String {
+        switch store.currentItem.prescription {
+        case .timeBased:
+            return "Осталось \(store.remainingSeconds) секунд в этом упражнении"
+        case let .repetitionBased(target, unit, _, _):
+            let meaning = unit == .perSideAlternating
+                ? "Каждая смена стороны считается отдельно"
+                : "Каждый полный цикл считается одним повтором"
+            return "Выполнено \(store.currentCount) из \(target) повторов. \(meaning)"
+        }
+    }
+
+    private var repetitionControls: some View {
+        VStack(alignment: .leading, spacing: TempoTokens.Space.sm) {
+            if store.isAwaitingSetConfirmation {
+                Text("Цель достигнута. Подтвердите завершение набора.")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(TempoTokens.SemanticColor.inversePrimary.color)
+                    .accessibilityIdentifier("session.active.setConfirmation")
+            }
+
+            if store.isManualCount {
+                HStack(spacing: TempoTokens.Space.sm) {
+                    manualCountButton(
+                        symbol: "minus",
+                        label: "Уменьшить счёт повторов",
+                        isDisabled: store.currentCount == 0
+                    ) {
+                        store.adjustManualCount(by: -1)
+                    }
+                    manualCountButton(
+                        symbol: "plus",
+                        label: "Подтвердить ещё один повтор",
+                        isDisabled: store.currentCount == store.currentItem.prescription.targetCount
+                    ) {
+                        store.adjustManualCount(by: 1)
+                    }
+                }
+            } else {
+                Button(store.isAwaitingSetConfirmation ? "Продолжить вручную" : "Считать вручную") {
+                    store.switchToManualCount()
+                }
+                    .font(.headline)
+                    .frame(minHeight: TempoTokens.Size.minimumTap)
+                    .foregroundStyle(TempoTokens.SemanticColor.inversePrimary.color)
+                    .accessibilityHint("Отключает автоматический темп для текущего упражнения")
+                    .accessibilityIdentifier("session.active.manualCount")
+            }
+        }
+    }
+
+    private func manualCountButton(
+        symbol: String,
+        label: String,
+        isDisabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .frame(maxWidth: .infinity, minHeight: TempoTokens.Size.minimumTap)
+                .overlay {
+                    RoundedRectangle(cornerRadius: TempoTokens.Radius.small)
+                        .stroke(
+                            inverseControlBorderColor,
+                            lineWidth: accessibilityContrast == .increased ? 2 : 1
+                        )
+                }
+        }
+        .accessibilityLabel(label)
+        .disabled(isDisabled)
     }
 
     private var activeCountdownLabel: some View {
@@ -418,15 +589,26 @@ struct ExercisePlayerView: View {
     }
 
     private var nextActionTitle: String {
+        if case .repetitionBased = store.currentItem.prescription {
+            return store.isAwaitingSetConfirmation ? "Подтвердить набор" : "Завершить набор"
+        }
         if store.nextItem == nil { return "Завершить" }
         return "Далее · отдых \(store.currentItem.restAfterSec) сек"
     }
 
     private func advanceFromExercise() {
+        if case .repetitionBased = store.currentItem.prescription {
+            if store.isAwaitingSetConfirmation {
+                store.confirmSet()
+            } else {
+                presentConfirmation(.finishRepetitionEarly, opener: .nextButton)
+            }
+            return
+        }
         if store.nextItem == nil, store.remainingSeconds > 0 {
             presentConfirmation(.finishLastExerciseEarly, opener: .nextButton)
         } else {
-            store.skipExercise()
+            store.completeCurrentEarly()
         }
     }
 
@@ -453,6 +635,16 @@ struct ExercisePlayerView: View {
         case .exitSession:
             onNewWorkout()
         case .finishLastExerciseEarly:
+            store.completeCurrentEarly()
+            self.confirmation = nil
+            confirmationOpener = nil
+            confirmationTransitioning = false
+        case .finishRepetitionEarly:
+            store.completeCurrentEarly()
+            self.confirmation = nil
+            confirmationOpener = nil
+            confirmationTransitioning = false
+        case .skipExercise:
             store.skipExercise()
             self.confirmation = nil
             confirmationOpener = nil
@@ -461,7 +653,8 @@ struct ExercisePlayerView: View {
     }
 
     private func announceCountdownIfNeeded() {
-        guard [10, 5, 3, 2, 1].contains(store.remainingSeconds),
+        guard case .timeBased = store.currentItem.prescription,
+              [10, 5, 3, 2, 1].contains(store.remainingSeconds),
               lastAnnouncedSecond != store.remainingSeconds else { return }
         lastAnnouncedSecond = store.remainingSeconds
         UIAccessibility.post(
@@ -490,6 +683,7 @@ struct ExercisePlayerView: View {
         case .stateTitle: validationFocusProbe = "stateTitle"
         case .exitButton: validationFocusProbe = "exitButton"
         case .pauseButton: validationFocusProbe = "pauseButton"
+        case .audioButton: validationFocusProbe = "audioButton"
         case .nextButton: validationFocusProbe = "nextButton"
         case .pauseDialog: validationFocusProbe = "pauseDialog"
         case nil: validationFocusProbe = "none"
@@ -499,6 +693,11 @@ struct ExercisePlayerView: View {
 
 #Preview("Активное упражнение") {
     NavigationStack {
-        ExercisePlayerView(plan: .preview, onRepeat: {}, onNewWorkout: {})
+        ExercisePlayerView(
+            plan: .preview,
+            audioPreferences: WorkoutAudioPreferences(),
+            onRepeat: {},
+            onNewWorkout: {}
+        )
     }
 }

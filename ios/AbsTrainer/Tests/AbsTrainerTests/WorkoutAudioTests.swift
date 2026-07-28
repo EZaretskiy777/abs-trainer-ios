@@ -87,14 +87,17 @@ final class CoachingSchedulerTests: XCTestCase {
         XCTAssertTrue(Set(spoken).isDisjoint(with: Set(CoachingScheduler.russianNumerals)))
     }
 
-    func testVoiceOverSuppressesAllCoachingAndDoesNotReplayMissedEvents() {
+    func testVoiceOverSuppressesAndDoesNotReplayMissedEvents() {
         var scheduler = CoachingScheduler()
         XCTAssertTrue(scheduler.phrases(for: .workoutStarted, voiceOverActive: true).isEmpty)
+        XCTAssertTrue(scheduler.phrases(for: .workoutStarted, voiceOverActive: false).isEmpty)
+
+        var audibleScheduler = CoachingScheduler()
         XCTAssertEqual(
-            scheduler.phrases(for: .workoutStarted, voiceOverActive: false).map(\.text),
+            audibleScheduler.phrases(for: .workoutStarted, voiceOverActive: false).map(\.text),
             ["Начинаем тренировку."]
         )
-        XCTAssertTrue(scheduler.phrases(for: .workoutStarted, voiceOverActive: false).isEmpty)
+        XCTAssertTrue(audibleScheduler.phrases(for: .workoutStarted, voiceOverActive: false).isEmpty)
     }
 
     func testMusicGainPolicyUsesContractTargets() {
