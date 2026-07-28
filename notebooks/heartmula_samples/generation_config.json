@@ -1,0 +1,7 @@
+{
+  "cfg_scale": 1.5,
+  "duration_ms": 60000,
+  "seed": 20260728,
+  "temperature": 1.0,
+  "topk": 50
+}

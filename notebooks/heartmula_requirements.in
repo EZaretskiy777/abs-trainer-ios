@@ -1,0 +1,23 @@
+# Direct runtime requirements mirrored from heartlib commit
+# 3783bdb8441f2c298b1e64c8651173aac200361c, with exact
+# CUDA/Python build tooling pins for reproducible Google Colab setup.
+setuptools==75.3.2
+wheel==0.45.1
+numpy==2.0.2
+torch==2.4.1+cu121
+torchaudio==2.4.1+cu121
+torchtune==0.4.0
+torchao==0.9.0
+torchvision==0.19.1+cu121
+tqdm==4.67.1
+traitlets==5.7.1
+traittypes==0.2.3
+transformers==4.57.0
+tokenizers==0.22.1
+ipykernel==6.17.1
+einops==0.8.1
+accelerate==1.12.0
+bitsandbytes==0.49.0
+vector-quantize-pytorch==1.27.15
+modelscope==1.33.0
+soundfile==0.13.1
