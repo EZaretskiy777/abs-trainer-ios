@@ -13,18 +13,31 @@ final class ExerciseVideoPlayback: NSObject, ObservableObject {
     }
 
     @Published private(set) var state: State = .poster
+#if DEBUG
     @Published private(set) var completedLoopCount = 0
     @Published private(set) var currentPositionMilliseconds = 0
     @Published private(set) var posterPresentationMilliseconds: Int?
     @Published private(set) var videoStartMilliseconds: Int?
+    @Published private(set) var firstLoopMilliseconds: Int?
+    @Published private(set) var interruptionCount = 0
+    @Published private(set) var observedStateNames = ["poster"]
+#endif
     let player = AVQueuePlayer()
 
     private var looper: AVPlayerLooper?
-    private var statusObservation: NSKeyValueObservation?
+    private var timeControlObservation: NSKeyValueObservation?
+    private var currentItemObservation: NSKeyValueObservation?
+    private var itemStatusObservation: NSKeyValueObservation?
     private var playbackFailureObserver: NSObjectProtocol?
+#if DEBUG
+    private var playbackCompletionObserver: NSObjectProtocol?
+#endif
     private var periodicTimeObserver: Any?
-    private var currentLoopItem: AVPlayerItem?
+#if DEBUG
     private var presentationStartedAt: TimeInterval?
+    private var posterPresentedBeforeOrigin = false
+#endif
+    private var ownedItems: [AVPlayerItem] = []
     private var isPlaybackAllowed = false
 
     override init() {
@@ -38,18 +51,27 @@ final class ExerciseVideoPlayback: NSObject, ObservableObject {
             play()
             return
         }
-        state = .loading
+        transition(to: .loading)
         let item = AVPlayerItem(url: url)
         looper = AVPlayerLooper(player: player, templateItem: item)
-        statusObservation = player.observe(\.timeControlStatus, options: [.initial, .new]) { [weak self] player, _ in
+        currentItemObservation = player.observe(\.currentItem, options: [.initial, .new]) { [weak self] player, _ in
+            DispatchQueue.main.async {
+                guard let self, self.looper != nil else { return }
+                self.observeStatus(of: player.currentItem)
+            }
+        }
+        timeControlObservation = player.observe(\.timeControlStatus, options: [.initial, .new]) { [weak self] player, _ in
             DispatchQueue.main.async {
                 guard let self, self.looper != nil else { return }
                 switch player.timeControlStatus {
                 case .playing:
+                    if self.state == .loading, player.currentItem?.status == .readyToPlay {
+                        self.transition(to: .ready)
+                    }
                     self.recordPlaybackProgress(player.currentTime())
-                case .paused:
+                case .paused, .waitingToPlayAtSpecifiedRate:
                     if self.state == .playing {
-                        self.state = .ready
+                        self.transition(to: .ready)
                     }
                 default:
                     break
@@ -60,10 +82,31 @@ final class ExerciseVideoPlayback: NSObject, ObservableObject {
             forName: .AVPlayerItemFailedToPlayToEndTime,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
-            guard let self, self.looper != nil else { return }
+        ) { [weak self] notification in
+            guard let self,
+                  self.looper != nil,
+                  let failedItem = notification.object as? AVPlayerItem,
+                  self.owns(failedItem) else { return }
             self.fail()
         }
+#if DEBUG
+        playbackCompletionObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self,
+                  self.looper != nil,
+                  let completedItem = notification.object as? AVPlayerItem,
+                  self.owns(completedItem) else { return }
+            let durationSeconds = CMTimeGetSeconds(completedItem.duration)
+            if self.firstLoopMilliseconds == nil, durationSeconds.isFinite, durationSeconds > 0 {
+                self.firstLoopMilliseconds = Int((durationSeconds * 1_000).rounded())
+            }
+            self.completedLoopCount += 1
+            self.ownedItems.removeAll { $0 === completedItem }
+        }
+#endif
         periodicTimeObserver = player.addPeriodicTimeObserver(
             forInterval: CMTime(value: 1, timescale: 30),
             queue: .main
@@ -90,73 +133,158 @@ final class ExerciseVideoPlayback: NSObject, ObservableObject {
     func pause() {
         player.pause()
         if state == .playing {
-            state = .ready
+            transition(to: .ready)
         }
     }
 
+#if DEBUG
     func beginPresentation() {
         guard presentationStartedAt == nil else { return }
         presentationStartedAt = ProcessInfo.processInfo.systemUptime
+        if posterPresentedBeforeOrigin, posterPresentationMilliseconds == nil {
+            posterPresentationMilliseconds = 0
+        }
     }
 
     func recordPosterPresentation() {
         guard posterPresentationMilliseconds == nil else { return }
-        let now = ProcessInfo.processInfo.systemUptime
-        if presentationStartedAt == nil {
-            presentationStartedAt = now
+        guard let presentationStartedAt else {
+            posterPresentedBeforeOrigin = true
+            return
         }
+        let now = ProcessInfo.processInfo.systemUptime
         posterPresentationMilliseconds = Int(
-            ((now - (presentationStartedAt ?? now)) * 1_000).rounded()
+            ((now - presentationStartedAt) * 1_000).rounded()
         )
     }
+#endif
 
     func tearDown() {
-        isPlaybackAllowed = false
-        player.pause()
-        statusObservation = nil
-        if let playbackFailureObserver {
-            NotificationCenter.default.removeObserver(playbackFailureObserver)
-            self.playbackFailureObserver = nil
-        }
-        if let periodicTimeObserver {
-            player.removeTimeObserver(periodicTimeObserver)
-            self.periodicTimeObserver = nil
-        }
-        currentLoopItem = nil
-        looper?.disableLooping()
-        looper = nil
-        player.removeAllItems()
-        presentationStartedAt = nil
-        completedLoopCount = 0
-        currentPositionMilliseconds = 0
-        posterPresentationMilliseconds = nil
-        videoStartMilliseconds = nil
+        cleanUp(resetProbe: true)
         state = .poster
     }
 
     func fail() {
-        tearDown()
-        state = .failed
+        cleanUp(resetProbe: false)
+        transition(to: .failed)
+    }
+
+    private func cleanUp(resetProbe: Bool) {
+        isPlaybackAllowed = false
+        player.pause()
+        timeControlObservation = nil
+        currentItemObservation = nil
+        itemStatusObservation = nil
+        if let playbackFailureObserver {
+            NotificationCenter.default.removeObserver(playbackFailureObserver)
+            self.playbackFailureObserver = nil
+        }
+#if DEBUG
+        if let playbackCompletionObserver {
+            NotificationCenter.default.removeObserver(playbackCompletionObserver)
+            self.playbackCompletionObserver = nil
+        }
+#endif
+        if let periodicTimeObserver {
+            player.removeTimeObserver(periodicTimeObserver)
+            self.periodicTimeObserver = nil
+        }
+        looper?.disableLooping()
+        looper = nil
+        player.removeAllItems()
+        ownedItems.removeAll()
+#if DEBUG
+        if resetProbe {
+            presentationStartedAt = nil
+            posterPresentedBeforeOrigin = false
+            completedLoopCount = 0
+            currentPositionMilliseconds = 0
+            posterPresentationMilliseconds = nil
+            videoStartMilliseconds = nil
+            firstLoopMilliseconds = nil
+            interruptionCount = 0
+            observedStateNames = ["poster"]
+        }
+#endif
+    }
+
+    private func observeStatus(of item: AVPlayerItem?) {
+        itemStatusObservation = nil
+        guard let item else { return }
+        if !owns(item) {
+            ownedItems.append(item)
+            if ownedItems.count > 2 {
+                ownedItems.removeFirst(ownedItems.count - 2)
+            }
+        }
+        itemStatusObservation = item.observe(\.status, options: [.initial, .new]) { [weak self] item, _ in
+            DispatchQueue.main.async {
+                guard let self,
+                      self.looper != nil,
+                      self.player.currentItem === item else { return }
+                switch item.status {
+                case .readyToPlay:
+                    if self.state != .playing {
+                        self.transition(to: .ready)
+                    }
+                    self.play()
+                case .failed:
+                    self.fail()
+                default:
+                    break
+                }
+            }
+        }
+    }
+
+    private func owns(_ item: AVPlayerItem) -> Bool {
+        ownedItems.contains { $0 === item }
     }
 
     private func recordPlaybackProgress(_ time: CMTime) {
-        guard looper != nil, let currentItem = player.currentItem else { return }
+        guard looper != nil else { return }
         let seconds = CMTimeGetSeconds(time)
         guard seconds.isFinite, seconds >= 0 else { return }
-        currentPositionMilliseconds = Int((seconds * 1_000).rounded())
+        let positionMilliseconds = Int((seconds * 1_000).rounded())
 
-        if let currentLoopItem, currentLoopItem !== currentItem {
-            completedLoopCount += 1
+#if DEBUG
+        currentPositionMilliseconds = positionMilliseconds
+#endif
+
+        guard player.timeControlStatus == .playing, positionMilliseconds > 0 else { return }
+        if state == .loading {
+            guard player.currentItem?.status == .readyToPlay else { return }
+            transition(to: .ready)
         }
-        currentLoopItem = currentItem
-
-        guard player.timeControlStatus == .playing, currentPositionMilliseconds > 0 else { return }
-        state = .playing
+        transition(to: .playing)
+#if DEBUG
         if videoStartMilliseconds == nil, let presentationStartedAt {
             videoStartMilliseconds = Int(
                 ((ProcessInfo.processInfo.systemUptime - presentationStartedAt) * 1_000).rounded()
             )
         }
+#endif
+    }
+
+    private func transition(to newState: State) {
+        guard state != newState else { return }
+#if DEBUG
+        if state == .playing, newState == .loading || newState == .ready || newState == .failed {
+            interruptionCount += 1
+        }
+        let stateName: String
+        switch newState {
+        case .poster: stateName = "poster"
+        case .loading: stateName = "loading"
+        case .ready: stateName = "ready"
+        case .playing: stateName = "playing"
+        case .failed: stateName = "failed"
+        }
+        if observedStateNames.last != stateName {
+            observedStateNames.append(stateName)
+        }
+#endif
+        state = newState
     }
 }
 
@@ -565,12 +693,23 @@ private struct ExerciseMotionAperture: View {
     @StateObject private var playback = ExerciseVideoPlayback()
 
     private var forceFailure: Bool {
-        ProcessInfo.processInfo.arguments.contains("-ExerciseMediaFailure")
+#if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        return arguments.contains("-ValidationMode") && arguments.contains("-ExerciseMediaFailure")
+#else
+        return false
+#endif
     }
 
     private var posterIsAvailable: Bool {
-        !ProcessInfo.processInfo.arguments.contains("-ExercisePosterFailure")
-            && ExerciseMediaRepository.posterURL(for: exercise) != nil
+#if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        let forcePosterFailure = arguments.contains("-ValidationMode")
+            && arguments.contains("-ExercisePosterFailure")
+        return !forcePosterFailure && ExerciseMediaRepository.posterURL(for: exercise) != nil
+#else
+        return ExerciseMediaRepository.posterURL(for: exercise) != nil
+#endif
     }
 
     private var validationReduceMotion: Bool {
@@ -599,7 +738,11 @@ private struct ExerciseMotionAperture: View {
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
+#if DEBUG
             ExercisePoster(exercise: exercise, onPresented: playback.recordPosterPresentation)
+#else
+            ExercisePoster(exercise: exercise)
+#endif
             if playback.state == .playing, !staticMode, !forceFailure {
                 VideoPlayer(player: playback.player)
                     .allowsHitTesting(false)
@@ -632,17 +775,12 @@ private struct ExerciseMotionAperture: View {
         .accessibilityValue(motionAccessibilityValue)
         .accessibilityIdentifier("exerciseDetail.motion")
         .overlay(alignment: .topLeading) {
-            if validationMode {
-                Text(validationPlaybackValue)
-                    .font(.system(size: 1))
-                    .frame(width: 1, height: 1)
-                    .accessibilityIdentifier("validation.exercisePlayback")
-                    .accessibilityLabel("Validation exercise playback")
-                    .accessibilityValue(validationPlaybackValue)
-            }
+            validationPlaybackProbe
         }
         .onAppear {
+#if DEBUG
             playback.beginPresentation()
+#endif
             startIfNeeded()
         }
         .onDisappear { playback.tearDown() }
@@ -688,6 +826,19 @@ private struct ExerciseMotionAperture: View {
         return "Анимация"
     }
 
+#if DEBUG
+    @ViewBuilder
+    private var validationPlaybackProbe: some View {
+        if validationMode {
+            Text(validationPlaybackValue)
+                .font(.system(size: 1))
+                .frame(width: 1, height: 1)
+                .accessibilityIdentifier("validation.exercisePlayback")
+                .accessibilityLabel("Validation exercise playback")
+                .accessibilityValue(validationPlaybackValue)
+        }
+    }
+
     private var validationPlaybackValue: String {
         let stateName: String
         switch playback.state {
@@ -697,16 +848,27 @@ private struct ExerciseMotionAperture: View {
         case .playing: stateName = "playing"
         case .failed: stateName = "failed"
         }
-        return "state=\(stateName);loops=\(playback.completedLoopCount);posterMs=\(playback.posterPresentationMilliseconds ?? -1);videoMs=\(playback.videoStartMilliseconds ?? -1);positionMs=\(playback.currentPositionMilliseconds);"
+        return "state=\(stateName);states=\(playback.observedStateNames.joined(separator: ","));loops=\(playback.completedLoopCount);posterMs=\(playback.posterPresentationMilliseconds ?? -1);videoMs=\(playback.videoStartMilliseconds ?? -1);firstLoopMs=\(playback.firstLoopMilliseconds ?? -1);interruptions=\(playback.interruptionCount);positionMs=\(playback.currentPositionMilliseconds);"
     }
+#else
+    @ViewBuilder
+    private var validationPlaybackProbe: some View { EmptyView() }
+#endif
 }
 
 private struct ExercisePoster: View {
     let exercise: Exercise
+#if DEBUG
     var onPresented: (() -> Void)? = nil
+#endif
 
     private var forceFailure: Bool {
-        ProcessInfo.processInfo.arguments.contains("-ExercisePosterFailure")
+#if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        return arguments.contains("-ValidationMode") && arguments.contains("-ExercisePosterFailure")
+#else
+        return false
+#endif
     }
 
     private var image: UIImage? {
@@ -743,6 +905,10 @@ private struct ExercisePoster: View {
         .aspectRatio(1, contentMode: .fit)
         .background(TempoTokens.ColorToken.chalkSubtle)
         .clipShape(RoundedRectangle(cornerRadius: TempoTokens.Radius.small, style: .continuous))
-        .onAppear { onPresented?() }
+        .onAppear {
+#if DEBUG
+            onPresented?()
+#endif
+        }
     }
 }

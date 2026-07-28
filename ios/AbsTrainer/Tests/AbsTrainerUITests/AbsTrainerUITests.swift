@@ -370,6 +370,11 @@ final class AbsTrainerUITests: XCTestCase {
             ),
             "Local AVPlayer never reached actual playing state: \(String(describing: playbackProbe.value))"
         )
+        let playingEvidence = try XCTUnwrap(playbackProbe.value as? String)
+        XCTAssertTrue(
+            playingEvidence.contains("states=poster,loading,ready,playing;"),
+            "Playback probe did not observe the required local loading → ready → playing sequence: \(playingEvidence)"
+        )
         attachScreenshot(named: "exercise-detail-playing")
 
         let backButton = app.buttons["BackButton"]
@@ -408,6 +413,11 @@ final class AbsTrainerUITests: XCTestCase {
             ),
             "Local AVPlayer never reached actual playing state: \(String(describing: playbackProbe.value))"
         )
+        let playingEvidence = try XCTUnwrap(playbackProbe.value as? String)
+        XCTAssertTrue(
+            playingEvidence.contains("states=poster,loading,ready,playing;"),
+            "Playback probe did not observe the required local loading → ready → playing sequence: \(playingEvidence)"
+        )
         attachScreenshot(named: "exercise-detail-playing-320x568")
 
         XCTAssertTrue(
@@ -422,11 +432,24 @@ final class AbsTrainerUITests: XCTestCase {
         let evidence = try XCTUnwrap(playbackProbe.value as? String)
         let posterMilliseconds = try playbackMetric("posterMs", in: evidence)
         let videoMilliseconds = try playbackMetric("videoMs", in: evidence)
+        let firstLoopMilliseconds = try playbackMetric("firstLoopMs", in: evidence)
+        let interruptions = try playbackMetric("interruptions", in: evidence)
         XCTAssertGreaterThanOrEqual(posterMilliseconds, 0, "Poster timing was not measured: \(evidence)")
         XCTAssertGreaterThan(videoMilliseconds, 0, "Video timing was not measured: \(evidence)")
         XCTAssertGreaterThanOrEqual(videoMilliseconds, posterMilliseconds, "Video preceded poster: \(evidence)")
+#if targetEnvironment(simulator)
+        XCTAssertGreaterThanOrEqual(
+            videoMilliseconds,
+            posterMilliseconds,
+            "Simulator must retain the measured video-start timestamp even though performance acceptance is device-only: \(evidence)"
+        )
+#else
         XCTAssertLessThanOrEqual(posterMilliseconds, 100, "Poster-first target exceeded: \(evidence)")
         XCTAssertLessThanOrEqual(videoMilliseconds, 500, "Local video-start target exceeded: \(evidence)")
+#endif
+        XCTAssertGreaterThanOrEqual(firstLoopMilliseconds, 3_500, "Observed loop was too short for the four-second asset: \(evidence)")
+        XCTAssertLessThanOrEqual(firstLoopMilliseconds, 4_500, "Observed loop was too long for the four-second asset: \(evidence)")
+        XCTAssertEqual(interruptions, 0, "Playback left actual playing state during the first loop: \(evidence)")
         attachScreenshot(named: "exercise-detail-loop-complete-320x568")
         let metrics = XCTAttachment(string: evidence)
         metrics.name = "exercise-detail-runtime-metrics-320x568"
@@ -457,6 +480,14 @@ final class AbsTrainerUITests: XCTestCase {
         let motion = app.descendants(matching: .any)["exerciseDetail.motion"]
         XCTAssertTrue(motion.waitForExistence(timeout: 3))
         XCTAssertEqual(motion.value as? String, "Анимация недоступна, показана резервная иллюстрация")
+        let playbackProbe = app.descendants(matching: .any)["validation.exercisePlayback"]
+        XCTAssertTrue(playbackProbe.waitForExistence(timeout: 3))
+        let failureEvidence = try XCTUnwrap(playbackProbe.value as? String)
+        XCTAssertTrue(failureEvidence.hasPrefix("state=failed;"), "Playback failure was not exposed: \(failureEvidence)")
+        XCTAssertTrue(
+            failureEvidence.contains("states=poster,failed;"),
+            "Playback failure history was not deterministic: \(failureEvidence)"
+        )
         XCTAssertTrue(app.descendants(matching: .any)["exerciseDetail.disclaimer"].exists)
         attachScreenshot(named: "exercise-detail-video-fallback-320x700")
     }
