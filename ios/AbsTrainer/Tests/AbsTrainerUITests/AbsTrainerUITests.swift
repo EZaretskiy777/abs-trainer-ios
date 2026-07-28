@@ -360,6 +360,16 @@ final class AbsTrainerUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["exerciseDetail.metadata"].label.contains("Начальный"))
         XCTAssertTrue(app.descendants(matching: .any)["exerciseDetail.phases"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["exerciseDetail.cues"].exists)
+        let playbackProbe = app.descendants(matching: .any)["validation.exercisePlayback"]
+        XCTAssertTrue(playbackProbe.waitForExistence(timeout: 3))
+        XCTAssertTrue(
+            wait(
+                for: NSPredicate(format: "value BEGINSWITH %@", "state=playing;"),
+                object: playbackProbe,
+                timeout: 5
+            ),
+            "Local AVPlayer never reached actual playing state: \(String(describing: playbackProbe.value))"
+        )
         attachScreenshot(named: "exercise-detail-playing")
 
         let backButton = app.buttons["BackButton"]
@@ -371,6 +381,54 @@ final class AbsTrainerUITests: XCTestCase {
         backButton.tap()
         XCTAssertTrue(upperSetup.waitForExistence(timeout: 3))
         XCTAssertEqual(upperSetup.value as? String, "Выбрано")
+    }
+
+    @MainActor
+    func testExerciseDetailActualPlaybackCompletesLoopAndMeasuresStartupAt320By568() throws {
+        let size = CGSize(width: 320, height: 568)
+        let app = launchApp(viewport: size)
+        let viewport = app.descendants(matching: .any)["validation.viewport"].firstMatch
+        XCTAssertTrue(viewport.waitForExistence(timeout: 5))
+        XCTAssertEqual(viewport.frame.width, size.width, accuracy: tolerance)
+        XCTAssertEqual(viewport.frame.height, size.height, accuracy: tolerance)
+
+        openExerciseLibrary(in: app)
+        let row = app.buttons["exerciseLibrary.row.crunch"]
+        reveal(row, in: app)
+        XCTAssertTrue(row.waitForExistence(timeout: 3))
+        row.tap()
+
+        let playbackProbe = app.descendants(matching: .any)["validation.exercisePlayback"]
+        XCTAssertTrue(playbackProbe.waitForExistence(timeout: 3))
+        XCTAssertTrue(
+            wait(
+                for: NSPredicate(format: "value BEGINSWITH %@", "state=playing;"),
+                object: playbackProbe,
+                timeout: 5
+            ),
+            "Local AVPlayer never reached actual playing state: \(String(describing: playbackProbe.value))"
+        )
+        attachScreenshot(named: "exercise-detail-playing-320x568")
+
+        XCTAssertTrue(
+            wait(
+                for: NSPredicate(format: "value MATCHES %@", ".*loops=[1-9][0-9]*;.*"),
+                object: playbackProbe,
+                timeout: 7
+            ),
+            "AVPlayerLooper did not complete a full four-second loop: \(String(describing: playbackProbe.value))"
+        )
+
+        let evidence = try XCTUnwrap(playbackProbe.value as? String)
+        let posterMilliseconds = try playbackMetric("posterMs", in: evidence)
+        let videoMilliseconds = try playbackMetric("videoMs", in: evidence)
+        XCTAssertLessThanOrEqual(posterMilliseconds, 100, "Poster-first target exceeded: \(evidence)")
+        XCTAssertLessThanOrEqual(videoMilliseconds, 500, "Local video-start target exceeded: \(evidence)")
+        attachScreenshot(named: "exercise-detail-loop-complete-320x568")
+        let metrics = XCTAttachment(string: evidence)
+        metrics.name = "exercise-detail-runtime-metrics-320x568"
+        metrics.lifetime = .keepAlways
+        add(metrics)
     }
 
     @MainActor
@@ -496,6 +554,19 @@ final class AbsTrainerUITests: XCTestCase {
     private func wait(for predicate: NSPredicate, object: Any, timeout: TimeInterval) -> Bool {
         let expectation = XCTNSPredicateExpectation(predicate: predicate, object: object)
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    private func playbackMetric(_ key: String, in evidence: String) throws -> Int {
+        let fields = Dictionary(
+            uniqueKeysWithValues: evidence
+                .split(separator: ";")
+                .compactMap { field -> (String, String)? in
+                    let components = field.split(separator: "=", maxSplits: 1).map(String.init)
+                    guard components.count == 2 else { return nil }
+                    return (components[0], components[1])
+                }
+        )
+        return try XCTUnwrap(fields[key].flatMap(Int.init), "Missing integer metric \(key) in \(evidence)")
     }
 
     @MainActor
