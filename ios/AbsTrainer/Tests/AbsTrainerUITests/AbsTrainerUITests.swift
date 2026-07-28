@@ -395,11 +395,10 @@ final class AbsTrainerUITests: XCTestCase {
         assertCriticalControls([durationDial, decrement, increment], in: setupVisibleFrame)
         assertNonOverlapping(decrement.frame, increment.frame)
         attachScreenshot(named: "\(screenshotPrefix)-01-setup")
-        setup.tap()
 
         let start = app.buttons["Начать тренировку"]
         let back = app.buttons["Назад к настройке"]
-        XCTAssertTrue(start.waitForExistence(timeout: 5))
+        tapForStateTransition(from: setup, to: start)
         assertCriticalControls([back, start], in: container)
         assertNonOverlapping(back.frame, start.frame)
         attachScreenshot(named: "\(screenshotPrefix)-02-plan")
@@ -539,6 +538,22 @@ final class AbsTrainerUITests: XCTestCase {
                     thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: endY))
                 )
         }
+    }
+
+    private func tapForStateTransition(from source: XCUIElement, to destination: XCUIElement) {
+        XCTAssertTrue(source.exists, "Transition source must exist before tapping")
+        XCTAssertTrue(source.isHittable, "Transition source must be hittable before tapping")
+        source.tap()
+
+        if destination.waitForExistence(timeout: 2) { return }
+
+        XCTAssertTrue(
+            source.waitForExistence(timeout: 2),
+            "Transition reached neither the source nor destination state"
+        )
+        XCTAssertTrue(source.isHittable, "Transition source must remain hittable before a state-aware retry")
+        source.tap()
+        XCTAssertTrue(destination.waitForExistence(timeout: 5), "Transition destination must appear after tapping")
     }
 
     private func visibleFrame(above obstruction: XCUIElement, in container: XCUIElement) -> CGRect {
