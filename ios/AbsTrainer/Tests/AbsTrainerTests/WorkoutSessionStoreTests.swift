@@ -163,16 +163,16 @@ final class TempoContrastTests: XCTestCase {
 
 final class DurationDialContractTests: XCTestCase {
     func testAllowedValuesPreserveProductDurationContract() {
-        XCTAssertEqual(DurationDialContract.allowedValues, [5, 10, 15])
+        XCTAssertEqual(DurationDialContract.allowedValues, Array(5...15))
     }
 
     func testNearestIndexNormalizesInvalidValuesAndBreaksTiesDown() {
-        XCTAssertEqual(DurationDialContract.nearestIndex(to: 7), 0)
-        XCTAssertEqual(DurationDialContract.nearestIndex(to: 8), 1)
-        XCTAssertEqual(DurationDialContract.nearestIndex(to: 12), 1)
-        XCTAssertEqual(DurationDialContract.nearestIndex(to: 13), 2)
+        XCTAssertEqual(DurationDialContract.nearestIndex(to: 7), 2)
+        XCTAssertEqual(DurationDialContract.nearestIndex(to: 8), 3)
+        XCTAssertEqual(DurationDialContract.nearestIndex(to: 12), 7)
+        XCTAssertEqual(DurationDialContract.nearestIndex(to: 13), 8)
         XCTAssertEqual(DurationDialContract.nearestIndex(to: Int.min), 0)
-        XCTAssertEqual(DurationDialContract.nearestIndex(to: Int.max), 2)
+        XCTAssertEqual(DurationDialContract.nearestIndex(to: Int.max), 10)
     }
 
     func testSnapFractionsStayWithinThreeStops() {
@@ -184,5 +184,81 @@ final class DurationDialContractTests: XCTestCase {
         XCTAssertEqual(DurationDialContract.index(for: 0.75, count: 3), 1)
         XCTAssertEqual(DurationDialContract.index(for: 0.76, count: 3), 2)
         XCTAssertEqual(DurationDialContract.index(for: 2, count: 3), 2)
+    }
+}
+
+@MainActor
+final class RepetitionWorkoutSessionStoreTests: XCTestCase {
+    private let start = Date(timeIntervalSince1970: 2_000)
+
+    func testPacedCountReachesTargetButWaitsForExplicitConfirmation() {
+        let store = WorkoutSessionStore(plan: repetitionPlan(), now: start)
+        store.tick(at: start.addingTimeInterval(12))
+
+        XCTAssertEqual(store.currentCount, 4)
+        XCTAssertTrue(store.isAwaitingSetConfirmation)
+        XCTAssertEqual(store.phase, .exercise)
+        XCTAssertEqual(store.completedExerciseCount, 0)
+
+        store.confirmSet(at: start.addingTimeInterval(12))
+        store.confirmSet(at: start.addingTimeInterval(12))
+
+        XCTAssertEqual(store.phase, .finished)
+        XCTAssertEqual(store.completedExerciseCount, 1)
+        XCTAssertEqual(store.outcomes["paced"], .completed)
+    }
+
+    func testPauseAndLateTickDoNotCatchUpRepetitionCount() {
+        let store = WorkoutSessionStore(plan: repetitionPlan(target: 6), now: start)
+        store.tick(at: start.addingTimeInterval(6))
+        XCTAssertEqual(store.currentCount, 2)
+
+        store.pause(at: start.addingTimeInterval(6))
+        store.tick(at: start.addingTimeInterval(30))
+        store.resume(at: start.addingTimeInterval(30))
+        store.tick(at: start.addingTimeInterval(32))
+
+        XCTAssertEqual(store.currentCount, 2)
+        store.tick(at: start.addingTimeInterval(33))
+        XCTAssertEqual(store.currentCount, 3)
+    }
+
+    func testManualCountIsBoundedAndSkipDoesNotIncrementCompletedCount() {
+        let store = WorkoutSessionStore(plan: repetitionPlan(target: 4), now: start)
+        store.switchToManualCount()
+        store.adjustManualCount(by: -1)
+        XCTAssertEqual(store.currentCount, 0)
+        for _ in 0..<8 { store.adjustManualCount(by: 1) }
+        XCTAssertEqual(store.currentCount, 4)
+
+        store.skipExercise(at: start)
+
+        XCTAssertEqual(store.phase, .finished)
+        XCTAssertEqual(store.completedExerciseCount, 0)
+        XCTAssertEqual(store.outcomes["paced"], .skipped)
+    }
+
+    private func repetitionPlan(target: Int = 4) -> WorkoutPlan {
+        let exercise = ExerciseCatalog.starter[0]
+        return WorkoutPlan(
+            id: "repetition-plan",
+            targetDurationMin: 5,
+            selectedZones: [.full],
+            intensity: .balanced,
+            items: [
+                WorkoutItem(
+                    id: "paced",
+                    exercise: exercise,
+                    prescription: .repetitionBased(
+                        targetCount: target,
+                        countingUnit: .fullCycle,
+                        cadenceMillisPerCount: 3_000,
+                        estimatedDurationSec: target * 3
+                    ),
+                    restAfterSec: 0,
+                    order: 1
+                )
+            ]
+        )
     }
 }

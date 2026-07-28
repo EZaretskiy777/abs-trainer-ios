@@ -13,7 +13,7 @@ final class WorkoutGeneratorTests: XCTestCase {
             intensity: .high
         ).normalized
 
-        XCTAssertEqual(normalized.targetDurationMin, 10)
+        XCTAssertEqual(normalized.targetDurationMin, 12)
         XCTAssertEqual(normalized.canonicalZones, [.full])
         XCTAssertEqual(normalized.intensity, .high)
     }
@@ -130,6 +130,69 @@ final class WorkoutGeneratorTests: XCTestCase {
                 )
             }
         }
+    }
+
+    func testStarterCatalogResolvesCanonicalPrescriptionMatrix() throws {
+        XCTAssertEqual(DurationDialContract.allowedValues, Array(5...15))
+
+        let crunch = try XCTUnwrap(ExerciseCatalog.starter.first { $0.id == "crunch" })
+        XCTAssertEqual(
+            ExerciseCatalog.prescription(for: crunch, targetDurationMin: 10, intensity: .balanced),
+            .repetitionBased(targetCount: 12, countingUnit: .fullCycle, cadenceMillisPerCount: 3_400, estimatedDurationSec: 41)
+        )
+
+        let bicycle = try XCTUnwrap(ExerciseCatalog.starter.first { $0.id == "bicycle_twist" })
+        XCTAssertEqual(
+            ExerciseCatalog.prescription(for: bicycle, targetDurationMin: 15, intensity: .high),
+            .repetitionBased(targetCount: 22, countingUnit: .perSideAlternating, cadenceMillisPerCount: 2_000, estimatedDurationSec: 44)
+        )
+
+        let plank = try XCTUnwrap(ExerciseCatalog.starter.first { $0.id == "plank" })
+        XCTAssertEqual(
+            ExerciseCatalog.prescription(for: plank, targetDurationMin: 6, intensity: .light),
+            .timeBased(durationSec: 30)
+        )
+    }
+
+    func testGeneratedItemsUseResolvedPrescriptionAsDurationSourceOfTruth() {
+        let plan = WorkoutGenerator().generate(
+            targetDurationMin: 11,
+            selectedZones: [.full],
+            intensity: .balanced
+        )
+
+        XCTAssertFalse(plan.items.isEmpty)
+        XCTAssertTrue(plan.items.allSatisfy { item in
+            item.prescription == ExerciseCatalog.prescription(
+                for: item.exercise,
+                targetDurationMin: 11,
+                intensity: .balanced
+            )
+        })
+        XCTAssertEqual(plan.totalEstimatedDurationSec, plan.totalDurationSec)
+        XCTAssertLessThanOrEqual(abs(plan.totalEstimatedDurationSec - 660), 30)
+    }
+
+    func testLegacyWorkoutItemDecodesAsTimedAndReencodesVersionTwo() throws {
+        let exerciseData = try JSONEncoder().encode(ExerciseCatalog.starter[0])
+        let exerciseObject = try XCTUnwrap(JSONSerialization.jsonObject(with: exerciseData) as? [String: Any])
+        let legacy: [String: Any] = [
+            "id": "legacy",
+            "exercise": exerciseObject,
+            "durationSec": 40,
+            "restAfterSec": 12,
+            "order": 1
+        ]
+        let data = try JSONSerialization.data(withJSONObject: legacy)
+
+        let decoded = try JSONDecoder().decode(WorkoutItem.self, from: data)
+
+        XCTAssertEqual(decoded.prescription, .timeBased(durationSec: 40))
+        let encoded = try JSONEncoder().encode(decoded)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        XCTAssertEqual(object["schemaVersion"] as? Int, 2)
+        XCTAssertEqual(object["durationSec"] as? Int, 40)
+        XCTAssertNotNil(object["prescription"])
     }
 
     func testEmptyCatalogReturnsControlledEmptyPlan() {

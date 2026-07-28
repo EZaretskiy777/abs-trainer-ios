@@ -237,15 +237,15 @@ final class AbsTrainerUITests: XCTestCase {
         XCTAssertTrue(increment.isEnabled)
 
         increment.tap()
-        XCTAssertEqual(dial.value as? String, "15 минут")
-        XCTAssertFalse(increment.isEnabled)
+        XCTAssertEqual(dial.value as? String, "11 минут")
+        XCTAssertTrue(increment.isEnabled)
 
         decrement.tap()
         decrement.tap()
-        XCTAssertEqual(dial.value as? String, "5 минут")
-        XCTAssertFalse(decrement.isEnabled)
+        XCTAssertEqual(dial.value as? String, "9 минут")
+        XCTAssertTrue(decrement.isEnabled)
         XCTAssertTrue(increment.isEnabled)
-        attachScreenshot(named: "duration-dial-minimum")
+        attachScreenshot(named: "duration-dial-one-minute-step")
     }
 
     @MainActor
@@ -285,16 +285,16 @@ final class AbsTrainerUITests: XCTestCase {
         XCTAssertEqual(dial.value as? String, "10 минут")
 
         increment.tap()
-        XCTAssertEqual(dial.value as? String, "15 минут")
+        XCTAssertEqual(dial.value as? String, "11 минут")
         increment.tap()
-        XCTAssertEqual(dial.value as? String, "15 минут")
+        XCTAssertEqual(dial.value as? String, "12 минут")
+        decrement.tap()
+        XCTAssertEqual(dial.value as? String, "11 минут")
         decrement.tap()
         XCTAssertEqual(dial.value as? String, "10 минут")
         decrement.tap()
-        XCTAssertEqual(dial.value as? String, "5 минут")
-        decrement.tap()
-        XCTAssertEqual(dial.value as? String, "5 минут")
-        attachScreenshot(named: "duration-dial-adjustable-minimum")
+        XCTAssertEqual(dial.value as? String, "9 минут")
+        attachScreenshot(named: "duration-dial-adjustable-one-minute-step")
     }
 
     @MainActor

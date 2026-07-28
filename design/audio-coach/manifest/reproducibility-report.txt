@@ -1,0 +1,13 @@
+ABS Trainer audio source reproducibility report
+status: PASS
+method: full second generation into isolated workspace directory followed by byte-for-byte cmp
+scope:
+- masters/workout_music_pulse_grid_v1.wav: identical
+- masters/workout_music_forward_arc_v1.wav: identical
+- previews/workout_music_pulse_grid_v1_preview.m4a: identical
+- previews/workout_music_forward_arc_v1_preview.m4a: identical
+- app/workout_music_pulse_grid_v1.m4a: identical
+command source: source/generate_workout_music.py
+seeds: pulse_grid=85523901, forward_arc=85523902
+ffmpeg distribution: imageio-ffmpeg==0.6.0
+external inputs: none

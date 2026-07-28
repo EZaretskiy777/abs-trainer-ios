@@ -1,0 +1,21 @@
+ABS Trainer audio validation report
+status: PASS
+provenance: original_in_house; third_party_inputs: []
+
+[workout_music_pulse_grid_v1] selected=true
+duration=64.000s sample_rate=48000 channels=stereo codec=pcm_s24le ([1][0][0][0] / 0x0001)
+loudness=-17.98 LUFS-I LRA=1.30 LU true_peak=-2.12 dBTP
+sample_peak=-2.50 dBFS seam_delta=-100.30 dBFS dc_L/R=-123.49/-123.25 dBFS
+master_sha256=c76546ffd3902cba6f840e5759c05ec1b7cc3b04a2dcfea9c4641633c94f1fe7
+preview_sha256=257595655e5c151f131036279628bdabafbf95e90c69f71bc042a53498129ee9
+
+[workout_music_forward_arc_v1] selected=false
+duration=60.000s sample_rate=48000 channels=stereo codec=pcm_s24le ([1][0][0][0] / 0x0001)
+loudness=-18.06 LUFS-I LRA=0.80 LU true_peak=-2.40 dBTP
+sample_peak=-2.40 dBFS seam_delta=-116.89 dBFS dc_L/R=-120.94/-121.00 dBFS
+master_sha256=9814e9acda8eaf039a4c67c98eed57dfa6dae0e06b9d5955fe19791a650bdbab
+preview_sha256=193b6a9e9b536e6e17bc7441051f052f2227b9526ace930e94c05e382428365b
+
+runtime_sha256=257595655e5c151f131036279628bdabafbf95e90c69f71bc042a53498129ee9
+decode: PASS for all WAV/M4A files
+headphones seam/content check: PENDING HUMAN/DEVICE REVIEW
