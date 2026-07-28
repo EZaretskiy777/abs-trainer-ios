@@ -2,6 +2,29 @@ import XCTest
 @testable import AbsTrainer
 
 final class ExerciseLibraryTests: XCTestCase {
+    func testVideoFrameCoverStartsVisibleUntilFirstRealFrame() {
+        var cover = ExerciseVideoFrameCover()
+
+        XCTAssertTrue(cover.isVisible)
+
+        cover.recordPresentedFrame()
+
+        XCTAssertFalse(cover.isVisible)
+    }
+
+    func testVideoFrameCoverReturnsForLooperItemUntilItsFirstRealFrame() {
+        var cover = ExerciseVideoFrameCover()
+        cover.recordPresentedFrame()
+
+        cover.awaitNextFrame()
+
+        XCTAssertTrue(cover.isVisible)
+
+        cover.recordPresentedFrame()
+
+        XCTAssertFalse(cover.isVisible)
+    }
+
     func testLocalContentCoversStarterCatalogInStableOrder() {
         XCTAssertEqual(
             ExerciseLibraryContentCatalog.local.map(\.exerciseID),
