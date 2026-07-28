@@ -116,7 +116,6 @@ struct WorkoutPlanView: View {
         .overlay(alignment: .bottom) {
             Rectangle().fill(TempoTokens.ColorToken.carbon.opacity(0.16)).frame(height: 1)
         }
-        .accessibilityIdentifier("plan.audio.summary")
     }
 
     private var audioSummaryText: some View {
@@ -132,6 +131,7 @@ struct WorkoutPlanView: View {
                 .foregroundStyle(TempoTokens.ColorToken.muted)
         }
         .fixedSize(horizontal: false, vertical: true)
+        .accessibilityIdentifier("plan.audio.summary")
     }
 
     private var audioEditButton: some View {
