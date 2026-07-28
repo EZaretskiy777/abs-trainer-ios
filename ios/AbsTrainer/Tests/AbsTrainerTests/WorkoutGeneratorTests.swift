@@ -13,9 +13,20 @@ final class WorkoutGeneratorTests: XCTestCase {
             intensity: .high
         ).normalized
 
-        XCTAssertEqual(normalized.targetDurationMin, 10)
+        XCTAssertEqual(normalized.targetDurationMin, 12)
         XCTAssertEqual(normalized.canonicalZones, [.full])
         XCTAssertEqual(normalized.intensity, .high)
+
+        XCTAssertEqual(
+            WorkoutSetup(targetDurationMin: 4, selectedZones: [.full], intensity: .balanced)
+                .normalized.targetDurationMin,
+            5
+        )
+        XCTAssertEqual(
+            WorkoutSetup(targetDurationMin: 16, selectedZones: [.full], intensity: .balanced)
+                .normalized.targetDurationMin,
+            15
+        )
     }
 
     func testSpecificZonesAreCanonicalAndEmptyFallsBackToFull() {

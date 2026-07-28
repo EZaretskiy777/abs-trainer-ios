@@ -230,15 +230,19 @@ final class AbsTrainerUITests: XCTestCase {
 
         XCTAssertTrue(dial.waitForExistence(timeout: 5))
         XCTAssertEqual(dial.value as? String, "10 минут")
+        XCTAssertEqual(dial.label, "Длительность тренировки")
+        XCTAssertEqual(decrement.label, "Уменьшить длительность на 1 минуту")
+        XCTAssertEqual(increment.label, "Увеличить длительность на 1 минуту")
         XCTAssertTrue(decrement.isEnabled)
         XCTAssertTrue(increment.isEnabled)
 
         increment.tap()
-        XCTAssertEqual(dial.value as? String, "15 минут")
-        XCTAssertFalse(increment.isEnabled)
+        XCTAssertEqual(dial.value as? String, "11 минут")
+        XCTAssertTrue(increment.isEnabled)
 
         decrement.tap()
-        decrement.tap()
+        XCTAssertEqual(dial.value as? String, "10 минут")
+        for _ in 0..<5 { decrement.tap() }
         XCTAssertEqual(dial.value as? String, "5 минут")
         XCTAssertFalse(decrement.isEnabled)
         XCTAssertTrue(increment.isEnabled)
@@ -249,15 +253,21 @@ final class AbsTrainerUITests: XCTestCase {
     func testDurationDialTapAndDragSnapToAllowedValues() throws {
         let app = launchApp(viewport: CGSize(width: 440, height: 956))
         let dial = app.descendants(matching: .any)["setup.durationDial"]
+        let increment = app.buttons["setup.durationDial.increment"]
         XCTAssertTrue(dial.waitForExistence(timeout: 5))
+        attachScreenshot(named: "duration-dial-10-minutes")
 
         dialPoint(.minimum, in: dial).tap()
         XCTAssertEqual(dial.value as? String, "5 минут")
+        attachScreenshot(named: "duration-dial-5-minutes")
+        increment.tap()
+        XCTAssertEqual(dial.value as? String, "6 минут")
+        attachScreenshot(named: "duration-dial-6-minutes")
         dialPoint(.midpoint, in: dial).tap()
         XCTAssertEqual(dial.value as? String, "10 минут")
         dialPoint(.maximum, in: dial).tap()
         XCTAssertEqual(dial.value as? String, "15 минут")
-        attachScreenshot(named: "duration-dial-tap-maximum")
+        attachScreenshot(named: "duration-dial-15-minutes")
 
         dialPoint(.maximum, in: dial).press(
             forDuration: 0.1,
@@ -282,16 +292,18 @@ final class AbsTrainerUITests: XCTestCase {
         XCTAssertEqual(dial.value as? String, "10 минут")
 
         increment.tap()
+        XCTAssertEqual(dial.value as? String, "11 минут")
+        decrement.tap()
+        XCTAssertEqual(dial.value as? String, "10 минут")
+        for _ in 0..<5 { decrement.tap() }
+        XCTAssertEqual(dial.value as? String, "5 минут")
+        decrement.tap()
+        XCTAssertEqual(dial.value as? String, "5 минут")
+        for _ in 0..<10 { increment.tap() }
         XCTAssertEqual(dial.value as? String, "15 минут")
         increment.tap()
         XCTAssertEqual(dial.value as? String, "15 минут")
-        decrement.tap()
-        XCTAssertEqual(dial.value as? String, "10 минут")
-        decrement.tap()
-        XCTAssertEqual(dial.value as? String, "5 минут")
-        decrement.tap()
-        XCTAssertEqual(dial.value as? String, "5 минут")
-        attachScreenshot(named: "duration-dial-adjustable-minimum")
+        attachScreenshot(named: "duration-dial-adjustable-maximum")
     }
 
     @MainActor

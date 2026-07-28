@@ -163,26 +163,24 @@ final class TempoContrastTests: XCTestCase {
 
 final class DurationDialContractTests: XCTestCase {
     func testAllowedValuesPreserveProductDurationContract() {
-        XCTAssertEqual(DurationDialContract.allowedValues, [5, 10, 15])
+        XCTAssertEqual(DurationDialContract.allowedValues, Array(5...15))
     }
 
-    func testNearestIndexNormalizesInvalidValuesAndBreaksTiesDown() {
-        XCTAssertEqual(DurationDialContract.nearestIndex(to: 7), 0)
-        XCTAssertEqual(DurationDialContract.nearestIndex(to: 8), 1)
-        XCTAssertEqual(DurationDialContract.nearestIndex(to: 12), 1)
-        XCTAssertEqual(DurationDialContract.nearestIndex(to: 13), 2)
+    func testNearestIndexPreservesEveryAllowedMinuteAndClampsOutsideRange() {
+        for (index, value) in DurationDialContract.allowedValues.enumerated() {
+            XCTAssertEqual(DurationDialContract.nearestIndex(to: value), index)
+        }
         XCTAssertEqual(DurationDialContract.nearestIndex(to: Int.min), 0)
-        XCTAssertEqual(DurationDialContract.nearestIndex(to: Int.max), 2)
+        XCTAssertEqual(DurationDialContract.nearestIndex(to: Int.max), 10)
     }
 
-    func testSnapFractionsStayWithinThreeStops() {
-        XCTAssertEqual(DurationDialContract.index(for: -1, count: 3), 0)
-        XCTAssertEqual(DurationDialContract.index(for: 0.24, count: 3), 0)
-        XCTAssertEqual(DurationDialContract.index(for: 0.25, count: 3), 0)
-        XCTAssertEqual(DurationDialContract.index(for: 0.26, count: 3), 1)
-        XCTAssertEqual(DurationDialContract.index(for: 0.74, count: 3), 1)
-        XCTAssertEqual(DurationDialContract.index(for: 0.75, count: 3), 1)
-        XCTAssertEqual(DurationDialContract.index(for: 0.76, count: 3), 2)
-        XCTAssertEqual(DurationDialContract.index(for: 2, count: 3), 2)
+    func testSnapFractionsUseElevenStopsAndClampAtEndpoints() {
+        XCTAssertEqual(DurationDialContract.index(for: -1, count: 11), 0)
+        XCTAssertEqual(DurationDialContract.index(for: 0.049, count: 11), 0)
+        XCTAssertEqual(DurationDialContract.index(for: 0.051, count: 11), 1)
+        XCTAssertEqual(DurationDialContract.index(for: 0.50, count: 11), 5)
+        XCTAssertEqual(DurationDialContract.index(for: 0.949, count: 11), 9)
+        XCTAssertEqual(DurationDialContract.index(for: 0.951, count: 11), 10)
+        XCTAssertEqual(DurationDialContract.index(for: 2, count: 11), 10)
     }
 }
