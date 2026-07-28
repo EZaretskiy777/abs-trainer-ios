@@ -23,7 +23,6 @@ final class ExerciseVideoPlayback: NSObject, ObservableObject {
     private var statusObservation: NSKeyValueObservation?
     private var playbackFailureObserver: NSObjectProtocol?
     private var periodicTimeObserver: Any?
-    private var activeItem: AVPlayerItem?
     private var currentLoopItem: AVPlayerItem?
     private var presentationStartedAt: TimeInterval?
     private var isPlaybackAllowed = false
@@ -41,26 +40,22 @@ final class ExerciseVideoPlayback: NSObject, ObservableObject {
         }
         state = .loading
         let item = AVPlayerItem(url: url)
-        activeItem = item
-        statusObservation = item.observe(\.status, options: [.initial, .new]) { [weak self] item, _ in
+        looper = AVPlayerLooper(player: player, templateItem: item)
+        statusObservation = player.observe(\.timeControlStatus, options: [.initial, .new]) { [weak self] player, _ in
             DispatchQueue.main.async {
-                guard let self, self.activeItem === item else { return }
-                switch item.status {
-                case .readyToPlay:
-                    self.state = .ready
-                    if self.isPlaybackAllowed {
-                        self.play()
-                    } else {
-                        self.player.pause()
+                guard let self, self.looper != nil else { return }
+                switch player.timeControlStatus {
+                case .playing:
+                    self.recordPlaybackProgress(player.currentTime())
+                case .paused:
+                    if self.state == .playing {
+                        self.state = .ready
                     }
-                case .failed:
-                    self.fail()
                 default:
                     break
                 }
             }
         }
-        looper = AVPlayerLooper(player: player, templateItem: item)
         playbackFailureObserver = NotificationCenter.default.addObserver(
             forName: .AVPlayerItemFailedToPlayToEndTime,
             object: nil,
@@ -75,10 +70,11 @@ final class ExerciseVideoPlayback: NSObject, ObservableObject {
         ) { [weak self] time in
             self?.recordPlaybackProgress(time)
         }
+        play()
     }
 
     func play() {
-        guard (state == .ready || state == .playing), isPlaybackAllowed else { return }
+        guard looper != nil, isPlaybackAllowed else { return }
         player.play()
     }
 
@@ -126,7 +122,6 @@ final class ExerciseVideoPlayback: NSObject, ObservableObject {
             player.removeTimeObserver(periodicTimeObserver)
             self.periodicTimeObserver = nil
         }
-        activeItem = nil
         currentLoopItem = nil
         looper?.disableLooping()
         looper = nil
