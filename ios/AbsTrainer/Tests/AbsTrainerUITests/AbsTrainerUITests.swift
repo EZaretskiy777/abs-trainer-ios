@@ -4,6 +4,7 @@ import XCTest
 final class AbsTrainerUITests: XCTestCase {
     private let tolerance: CGFloat = 2
     private let maximumFinishPrimaryHeight: CGFloat = 96
+    private let minimumSetupActionGap: CGFloat = 8
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -93,7 +94,7 @@ final class AbsTrainerUITests: XCTestCase {
 
         let summary = app.descendants(matching: .any)["plan.summary"]
         XCTAssertTrue(summary.waitForExistence(timeout: 5))
-        XCTAssertTrue(summary.label.contains("10 минут"))
+        XCTAssertTrue(summary.label.contains("5 минут"))
         XCTAssertTrue(summary.label.contains("верхний"))
         XCTAssertTrue(summary.label.contains("нижний"))
         XCTAssertTrue(summary.label.contains("высокая интенсивность"))
@@ -147,6 +148,9 @@ final class AbsTrainerUITests: XCTestCase {
             XCTAssertTrue(viewport.waitForExistence(timeout: 5))
             XCTAssertEqual(viewport.frame.width, size.width, accuracy: tolerance)
             XCTAssertEqual(viewport.frame.height, size.height, accuracy: tolerance)
+            if size == CGSize(width: 320, height: 700) {
+                assertInitialSetupHeadingClearsPinnedAction(in: app, container: viewport)
+            }
             assertFiveStateGeometry(
                 in: app,
                 container: viewport,
@@ -229,24 +233,22 @@ final class AbsTrainerUITests: XCTestCase {
         let increment = app.buttons["setup.durationDial.increment"]
 
         XCTAssertTrue(dial.waitForExistence(timeout: 5))
-        XCTAssertEqual(dial.value as? String, "10 минут")
+        XCTAssertEqual(dial.value as? String, "5 минут")
         XCTAssertEqual(dial.label, "Длительность тренировки")
         XCTAssertEqual(decrement.label, "Уменьшить длительность на 1 минуту")
         XCTAssertEqual(increment.label, "Увеличить длительность на 1 минуту")
-        XCTAssertTrue(decrement.isEnabled)
+        XCTAssertFalse(decrement.isEnabled)
         XCTAssertTrue(increment.isEnabled)
 
         increment.tap()
-        XCTAssertEqual(dial.value as? String, "11 минут")
+        XCTAssertEqual(dial.value as? String, "6 минут")
+        increment.tap()
+        XCTAssertEqual(dial.value as? String, "7 минут")
         XCTAssertTrue(increment.isEnabled)
 
         decrement.tap()
-        XCTAssertEqual(dial.value as? String, "10 минут")
-        for _ in 0..<5 { decrement.tap() }
-        XCTAssertEqual(dial.value as? String, "5 минут")
-        XCTAssertFalse(decrement.isEnabled)
-        XCTAssertTrue(increment.isEnabled)
-        attachScreenshot(named: "duration-dial-minimum")
+        XCTAssertEqual(dial.value as? String, "6 минут")
+        attachScreenshot(named: "duration-dial-step-sequence-5-6-7-6")
     }
 
     @MainActor
@@ -254,16 +256,15 @@ final class AbsTrainerUITests: XCTestCase {
         let app = launchApp(viewport: CGSize(width: 440, height: 956))
         let dial = app.descendants(matching: .any)["setup.durationDial"]
         XCTAssertTrue(dial.waitForExistence(timeout: 5))
-        attachScreenshot(named: "duration-dial-10-minutes")
-
-        dialPoint(.minimum, in: dial).tap()
         XCTAssertEqual(dial.value as? String, "5 минут")
         attachScreenshot(named: "duration-dial-5-minutes")
+
         dialPoint(.sixMinutes, in: dial).tap()
         XCTAssertEqual(dial.value as? String, "6 минут")
         attachScreenshot(named: "duration-dial-6-minutes")
         dialPoint(.midpoint, in: dial).tap()
         XCTAssertEqual(dial.value as? String, "10 минут")
+        attachScreenshot(named: "duration-dial-10-minutes")
         dialPoint(.maximum, in: dial).tap()
         XCTAssertEqual(dial.value as? String, "15 минут")
         attachScreenshot(named: "duration-dial-15-minutes")
@@ -293,13 +294,11 @@ final class AbsTrainerUITests: XCTestCase {
         XCTAssertTrue(decrement.waitForExistence(timeout: 2))
         XCTAssertTrue(increment.isHittable)
         XCTAssertTrue(decrement.isHittable)
-        XCTAssertEqual(dial.value as? String, "10 минут")
+        XCTAssertEqual(dial.value as? String, "5 минут")
 
         increment.tap()
-        XCTAssertEqual(dial.value as? String, "11 минут")
+        XCTAssertEqual(dial.value as? String, "6 минут")
         decrement.tap()
-        XCTAssertEqual(dial.value as? String, "10 минут")
-        for _ in 0..<5 { decrement.tap() }
         XCTAssertEqual(dial.value as? String, "5 минут")
         decrement.tap()
         XCTAssertEqual(dial.value as? String, "5 минут")
@@ -518,6 +517,24 @@ final class AbsTrainerUITests: XCTestCase {
             XCTAssertLessThanOrEqual(element.frame.maxX, finishVisibleFrame.maxX + tolerance)
         }
         attachScreenshot(named: "\(screenshotPrefix)-05-finish")
+    }
+
+    private func assertInitialSetupHeadingClearsPinnedAction(
+        in app: XCUIApplication,
+        container: XCUIElement
+    ) {
+        let setup = setupButton(in: app)
+        XCTAssertTrue(setup.waitForExistence(timeout: 5))
+        let zoneHeading = app.staticTexts["Куда нагрузка?"]
+        XCTAssertTrue(zoneHeading.waitForExistence(timeout: 2))
+        XCTAssertFalse(zoneHeading.frame.isEmpty)
+        let visibleFrame = visibleFrame(above: setup, in: container)
+        assertContained(zoneHeading.frame, in: visibleFrame)
+        XCTAssertLessThanOrEqual(
+            zoneHeading.frame.maxY,
+            setup.frame.minY - minimumSetupActionGap,
+            "Setup section heading must remain fully separated from the pinned primary action"
+        )
     }
 
     private func assertCriticalControls(_ controls: [XCUIElement], in container: XCUIElement) {

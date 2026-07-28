@@ -3,7 +3,7 @@ import XCTest
 
 final class WorkoutGeneratorTests: XCTestCase {
     func testSetupDefaultsAndNormalizationPreserveApprovedDomain() {
-        XCTAssertEqual(WorkoutSetup.default.targetDurationMin, 10)
+        XCTAssertEqual(WorkoutSetup.default.targetDurationMin, 5)
         XCTAssertEqual(WorkoutSetup.default.selectedZones, [.full])
         XCTAssertEqual(WorkoutSetup.default.intensity, .balanced)
 

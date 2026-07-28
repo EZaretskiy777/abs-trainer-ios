@@ -59,7 +59,7 @@ struct WorkoutSetup: Equatable {
     var intensity: WorkoutIntensity
 
     static let `default` = WorkoutSetup(
-        targetDurationMin: 10,
+        targetDurationMin: 5,
         selectedZones: [.full],
         intensity: .balanced
     )

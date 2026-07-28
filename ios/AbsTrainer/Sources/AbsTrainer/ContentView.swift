@@ -7,7 +7,7 @@ struct ContentView: View {
         case session
     }
 
-    @State private var selectedDuration = 10
+    @State private var selectedDuration = WorkoutSetup.default.targetDurationMin
     @State private var selectedZones: Set<AbsZone> = [.full]
     @State private var selectedIntensity: WorkoutIntensity = .balanced
     @State private var plan: WorkoutPlan?
@@ -85,7 +85,7 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         } else {
-            VStack(alignment: .leading, spacing: TempoTokens.Space.xxl) {
+            VStack(alignment: .leading, spacing: TempoTokens.Space.xl) {
                 header
                 durationPicker
                 zonePicker
