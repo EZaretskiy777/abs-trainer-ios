@@ -7,17 +7,25 @@ final class ExerciseVideoPlayback: NSObject, ObservableObject {
     enum State: Equatable {
         case poster
         case loading
+        case ready
         case playing
         case failed
     }
 
     @Published private(set) var state: State = .poster
+    @Published private(set) var completedLoopCount = 0
+    @Published private(set) var currentPositionMilliseconds = 0
+    @Published private(set) var posterPresentationMilliseconds: Int?
+    @Published private(set) var videoStartMilliseconds: Int?
     let player = AVQueuePlayer()
 
     private var looper: AVPlayerLooper?
     private var statusObservation: NSKeyValueObservation?
     private var playbackFailureObserver: NSObjectProtocol?
+    private var periodicTimeObserver: Any?
     private var activeItem: AVPlayerItem?
+    private var currentLoopItem: AVPlayerItem?
+    private var presentationStartedAt: TimeInterval?
     private var isPlaybackAllowed = false
 
     override init() {
@@ -39,9 +47,9 @@ final class ExerciseVideoPlayback: NSObject, ObservableObject {
                 guard let self, self.activeItem === item else { return }
                 switch item.status {
                 case .readyToPlay:
-                    self.state = .playing
+                    self.state = .ready
                     if self.isPlaybackAllowed {
-                        self.player.play()
+                        self.play()
                     } else {
                         self.player.pause()
                     }
@@ -61,10 +69,16 @@ final class ExerciseVideoPlayback: NSObject, ObservableObject {
             guard let self, self.looper != nil else { return }
             self.fail()
         }
+        periodicTimeObserver = player.addPeriodicTimeObserver(
+            forInterval: CMTime(value: 1, timescale: 30),
+            queue: .main
+        ) { [weak self] time in
+            self?.recordPlaybackProgress(time)
+        }
     }
 
     func play() {
-        guard state == .playing, isPlaybackAllowed else { return }
+        guard (state == .ready || state == .playing), isPlaybackAllowed else { return }
         player.play()
     }
 
@@ -79,6 +93,25 @@ final class ExerciseVideoPlayback: NSObject, ObservableObject {
 
     func pause() {
         player.pause()
+        if state == .playing {
+            state = .ready
+        }
+    }
+
+    func beginPresentation() {
+        guard presentationStartedAt == nil else { return }
+        presentationStartedAt = ProcessInfo.processInfo.systemUptime
+    }
+
+    func recordPosterPresentation() {
+        guard posterPresentationMilliseconds == nil else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        if presentationStartedAt == nil {
+            presentationStartedAt = now
+        }
+        posterPresentationMilliseconds = Int(
+            ((now - (presentationStartedAt ?? now)) * 1_000).rounded()
+        )
     }
 
     func tearDown() {
@@ -89,16 +122,46 @@ final class ExerciseVideoPlayback: NSObject, ObservableObject {
             NotificationCenter.default.removeObserver(playbackFailureObserver)
             self.playbackFailureObserver = nil
         }
+        if let periodicTimeObserver {
+            player.removeTimeObserver(periodicTimeObserver)
+            self.periodicTimeObserver = nil
+        }
         activeItem = nil
+        currentLoopItem = nil
         looper?.disableLooping()
         looper = nil
         player.removeAllItems()
+        presentationStartedAt = nil
+        completedLoopCount = 0
+        currentPositionMilliseconds = 0
+        posterPresentationMilliseconds = nil
+        videoStartMilliseconds = nil
         state = .poster
     }
 
     func fail() {
         tearDown()
         state = .failed
+    }
+
+    private func recordPlaybackProgress(_ time: CMTime) {
+        guard looper != nil, let currentItem = player.currentItem else { return }
+        let seconds = CMTimeGetSeconds(time)
+        guard seconds.isFinite, seconds >= 0 else { return }
+        currentPositionMilliseconds = Int((seconds * 1_000).rounded())
+
+        if let currentLoopItem, currentLoopItem !== currentItem {
+            completedLoopCount += 1
+        }
+        currentLoopItem = currentItem
+
+        guard player.timeControlStatus == .playing, currentPositionMilliseconds > 0 else { return }
+        state = .playing
+        if videoStartMilliseconds == nil, let presentationStartedAt {
+            videoStartMilliseconds = Int(
+                ((ProcessInfo.processInfo.systemUptime - presentationStartedAt) * 1_000).rounded()
+            )
+        }
     }
 }
 
@@ -527,20 +590,28 @@ private struct ExerciseMotionAperture: View {
         #endif
     }
 
+    private var validationMode: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-ValidationMode")
+        #else
+        false
+        #endif
+    }
+
     private var staticMode: Bool {
         reduceMotion || validationReduceMotion || ProcessInfo.processInfo.isLowPowerModeEnabled
     }
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            ExercisePoster(exercise: exercise)
+            ExercisePoster(exercise: exercise, onPresented: playback.recordPosterPresentation)
             if playback.state == .playing, !staticMode, !forceFailure {
                 VideoPlayer(player: playback.player)
                     .allowsHitTesting(false)
                     .transition(.opacity)
             }
 
-            if playback.state == .loading, !staticMode, !forceFailure {
+            if (playback.state == .loading || playback.state == .ready), !staticMode, !forceFailure {
                 ProgressView()
                     .padding(TempoTokens.Space.sm)
                     .background(.ultraThinMaterial, in: Capsule())
@@ -565,7 +636,20 @@ private struct ExerciseMotionAperture: View {
         .accessibilityLabel("Демонстрация упражнения «\(exercise.title)»")
         .accessibilityValue(motionAccessibilityValue)
         .accessibilityIdentifier("exerciseDetail.motion")
-        .onAppear(perform: startIfNeeded)
+        .overlay(alignment: .topLeading) {
+            if validationMode {
+                Text(validationPlaybackValue)
+                    .font(.system(size: 1))
+                    .frame(width: 1, height: 1)
+                    .accessibilityIdentifier("validation.exercisePlayback")
+                    .accessibilityLabel("Validation exercise playback")
+                    .accessibilityValue(validationPlaybackValue)
+            }
+        }
+        .onAppear {
+            playback.beginPresentation()
+            startIfNeeded()
+        }
         .onDisappear { playback.tearDown() }
         .onChange(of: scenePhase) { phase in
             if phase == .active {
@@ -608,10 +692,23 @@ private struct ExerciseMotionAperture: View {
         }
         return "Анимация"
     }
+
+    private var validationPlaybackValue: String {
+        let stateName: String
+        switch playback.state {
+        case .poster: stateName = "poster"
+        case .loading: stateName = "loading"
+        case .ready: stateName = "ready"
+        case .playing: stateName = "playing"
+        case .failed: stateName = "failed"
+        }
+        return "state=\(stateName);loops=\(playback.completedLoopCount);posterMs=\(playback.posterPresentationMilliseconds ?? -1);videoMs=\(playback.videoStartMilliseconds ?? -1);positionMs=\(playback.currentPositionMilliseconds);"
+    }
 }
 
 private struct ExercisePoster: View {
     let exercise: Exercise
+    var onPresented: (() -> Void)? = nil
 
     private var forceFailure: Bool {
         ProcessInfo.processInfo.arguments.contains("-ExercisePosterFailure")
@@ -651,5 +748,6 @@ private struct ExercisePoster: View {
         .aspectRatio(1, contentMode: .fit)
         .background(TempoTokens.ColorToken.chalkSubtle)
         .clipShape(RoundedRectangle(cornerRadius: TempoTokens.Radius.small, style: .continuous))
+        .onAppear { onPresented?() }
     }
 }

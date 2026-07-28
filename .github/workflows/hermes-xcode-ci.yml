@@ -77,6 +77,15 @@ jobs:
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
           xcrun simctl list devices | tee artifacts/simulator-selection.txt
 
+      - name: Run repository and runtime media gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check | tee artifacts/git-diff-check.log
+          python3 scripts/artifact_gate.py | tee artifacts/artifact-gate.log
+          python3 scripts/validate_exercise_media.py | tee artifacts/runtime-media-validator.log
+          python3 scripts/verify_exercise_runtime_inventory.py | tee artifacts/runtime-inventory.log
+
       - name: Build
         shell: bash
         run: |
@@ -102,6 +111,49 @@ jobs:
             -resultBundlePath "$RESULT_BUNDLE" \
             CODE_SIGNING_ALLOWED=NO \
             | tee artifacts/test.log
+
+      - name: Record actual offline playback through a complete loop
+        shell: bash
+        run: |
+          set -euo pipefail
+          video="$PWD/artifacts/exercise-detail-runtime-loop-320x568.mp4"
+          evidence_result="$PWD/artifacts/PlaybackEvidence.xcresult"
+          rm -f "$video"
+          rm -rf "$evidence_result"
+
+          xcrun simctl io "${{ steps.simulator.outputs.udid }}" recordVideo \
+            --codec=h264 --force "$video" \
+            > artifacts/runtime-recording.log 2>&1 &
+          recorder_pid=$!
+          cleanup() {
+            if kill -0 "$recorder_pid" 2>/dev/null; then
+              kill -INT "$recorder_pid" 2>/dev/null || true
+              wait "$recorder_pid" 2>/dev/null || true
+            fi
+          }
+          trap cleanup EXIT
+
+          set +e
+          set -o pipefail
+          xcodebuild test \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}" \
+            -derivedDataPath "$DERIVED_DATA" \
+            -resultBundlePath "$evidence_result" \
+            -only-testing:AbsTrainerUITests/AbsTrainerUITests/testExerciseDetailActualPlaybackCompletesLoopAndMeasuresStartupAt320By568 \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee artifacts/playback-evidence-test.log
+          test_status=${PIPESTATUS[0]}
+          set -e
+
+          cleanup
+          trap - EXIT
+          test -s "$video"
+          ditto -c -k --sequesterRsrc --keepParent \
+            "$evidence_result" artifacts/PlaybackEvidence.xcresult.zip
+          rm -rf "$evidence_result"
+          exit "$test_status"
 
       - name: Export result metadata and attachments
         if: always()
