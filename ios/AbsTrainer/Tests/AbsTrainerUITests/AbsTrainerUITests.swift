@@ -418,6 +418,14 @@ final class AbsTrainerUITests: XCTestCase {
             playingEvidence.contains("states=poster,loading,ready,playing;"),
             "Playback probe did not observe the required local loading → ready → playing sequence: \(playingEvidence)"
         )
+        XCTAssertTrue(
+            wait(
+                for: NSPredicate(format: "value CONTAINS %@", "cover=video;"),
+                object: playbackProbe,
+                timeout: 3
+            ),
+            "Poster cover was removed before a real video frame became available: \(String(describing: playbackProbe.value))"
+        )
         attachScreenshot(named: "exercise-detail-playing-320x568")
 
         XCTAssertTrue(
@@ -428,12 +436,24 @@ final class AbsTrainerUITests: XCTestCase {
             ),
             "AVPlayerLooper did not complete a full four-second loop: \(String(describing: playbackProbe.value))"
         )
+        XCTAssertTrue(
+            wait(
+                for: NSPredicate(format: "value CONTAINS %@", "cover=video;covers=poster,video,poster,video;"),
+                object: playbackProbe,
+                timeout: 3
+            ),
+            "Poster cover did not complete the first looper handoff: \(String(describing: playbackProbe.value))"
+        )
 
         let evidence = try XCTUnwrap(playbackProbe.value as? String)
         let posterMilliseconds = try playbackMetric("posterMs", in: evidence)
         let videoMilliseconds = try playbackMetric("videoMs", in: evidence)
         let firstLoopMilliseconds = try playbackMetric("firstLoopMs", in: evidence)
         let interruptions = try playbackMetric("interruptions", in: evidence)
+        XCTAssertTrue(
+            evidence.contains("cover=video;covers=poster,video,poster,video;"),
+            "Poster cover did not protect the AVPlayerLooper handoff until its first real frame: \(evidence)"
+        )
         XCTAssertGreaterThanOrEqual(posterMilliseconds, 0, "Poster timing was not measured: \(evidence)")
         XCTAssertGreaterThan(videoMilliseconds, 0, "Video timing was not measured: \(evidence)")
         XCTAssertGreaterThanOrEqual(videoMilliseconds, posterMilliseconds, "Video preceded poster: \(evidence)")

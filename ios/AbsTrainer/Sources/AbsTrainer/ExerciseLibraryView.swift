@@ -1,7 +1,21 @@
 import AVFoundation
-import AVKit
+import CoreImage
 import SwiftUI
 import UIKit
+
+struct ExerciseVideoFrameCover: Equatable {
+    private(set) var isVisible = true
+    private(set) var hasPresentedFrame = false
+
+    mutating func awaitNextFrame() {
+        isVisible = true
+    }
+
+    mutating func recordPresentedFrame() {
+        isVisible = false
+        hasPresentedFrame = true
+    }
+}
 
 final class ExerciseVideoPlayback: NSObject, ObservableObject {
     enum State: Equatable {
@@ -13,6 +27,7 @@ final class ExerciseVideoPlayback: NSObject, ObservableObject {
     }
 
     @Published private(set) var state: State = .poster
+    @Published private(set) var frameCover = ExerciseVideoFrameCover()
 #if DEBUG
     @Published private(set) var completedLoopCount = 0
     @Published private(set) var currentPositionMilliseconds = 0
@@ -21,6 +36,7 @@ final class ExerciseVideoPlayback: NSObject, ObservableObject {
     @Published private(set) var firstLoopMilliseconds: Int?
     @Published private(set) var interruptionCount = 0
     @Published private(set) var observedStateNames = ["poster"]
+    @Published private(set) var observedFrameCoverNames = ["poster"]
 #endif
     let player = AVQueuePlayer()
 
@@ -51,6 +67,7 @@ final class ExerciseVideoPlayback: NSObject, ObservableObject {
             play()
             return
         }
+        awaitNextVideoFrame()
         transition(to: .loading)
         let item = AVPlayerItem(url: url)
         looper = AVPlayerLooper(player: player, templateItem: item)
@@ -137,6 +154,22 @@ final class ExerciseVideoPlayback: NSObject, ObservableObject {
         }
     }
 
+    func awaitNextVideoFrame() {
+        guard !frameCover.isVisible else { return }
+        frameCover.awaitNextFrame()
+#if DEBUG
+        observedFrameCoverNames.append("poster")
+#endif
+    }
+
+    func recordPresentedVideoFrame() {
+        guard frameCover.isVisible else { return }
+        frameCover.recordPresentedFrame()
+#if DEBUG
+        observedFrameCoverNames.append("video")
+#endif
+    }
+
 #if DEBUG
     func beginPresentation() {
         guard presentationStartedAt == nil else { return }
@@ -165,6 +198,7 @@ final class ExerciseVideoPlayback: NSObject, ObservableObject {
     }
 
     func fail() {
+        awaitNextVideoFrame()
         cleanUp(resetProbe: false)
         transition(to: .failed)
     }
@@ -204,8 +238,12 @@ final class ExerciseVideoPlayback: NSObject, ObservableObject {
             firstLoopMilliseconds = nil
             interruptionCount = 0
             observedStateNames = ["poster"]
+            observedFrameCoverNames = ["poster"]
         }
 #endif
+        if resetProbe {
+            frameCover = ExerciseVideoFrameCover()
+        }
     }
 
     private func observeStatus(of item: AVPlayerItem?) {
@@ -712,6 +750,11 @@ private struct ExerciseMotionAperture: View {
 #endif
     }
 
+    private var posterImage: UIImage? {
+        guard posterIsAvailable, let url = ExerciseMediaRepository.posterURL(for: exercise) else { return nil }
+        return UIImage(contentsOfFile: url.path)
+    }
+
     private var validationReduceMotion: Bool {
         #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
@@ -738,15 +781,26 @@ private struct ExerciseMotionAperture: View {
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
+            if playback.state != .poster, playback.state != .failed, !staticMode, !forceFailure {
+                ExercisePlayerSurface(
+                    player: playback.player,
+                    posterImage: posterImage,
+                    onAwaitingFrame: playback.awaitNextVideoFrame,
+                    onPresentedFrame: playback.recordPresentedVideoFrame
+                )
+                .allowsHitTesting(false)
+            }
+
+            if staticMode
+                || forceFailure
+                || playback.state == .failed
+                || playback.state == .poster
+                || (!posterIsAvailable && !playback.frameCover.hasPresentedFrame) {
 #if DEBUG
-            ExercisePoster(exercise: exercise, onPresented: playback.recordPosterPresentation)
+                ExercisePoster(exercise: exercise, onPresented: playback.recordPosterPresentation)
 #else
-            ExercisePoster(exercise: exercise)
+                ExercisePoster(exercise: exercise)
 #endif
-            if playback.state == .playing, !staticMode, !forceFailure {
-                VideoPlayer(player: playback.player)
-                    .allowsHitTesting(false)
-                    .transition(.opacity)
             }
 
             if (playback.state == .loading || playback.state == .ready), !staticMode, !forceFailure {
@@ -848,12 +902,202 @@ private struct ExerciseMotionAperture: View {
         case .playing: stateName = "playing"
         case .failed: stateName = "failed"
         }
-        return "state=\(stateName);states=\(playback.observedStateNames.joined(separator: ","));loops=\(playback.completedLoopCount);posterMs=\(playback.posterPresentationMilliseconds ?? -1);videoMs=\(playback.videoStartMilliseconds ?? -1);firstLoopMs=\(playback.firstLoopMilliseconds ?? -1);interruptions=\(playback.interruptionCount);positionMs=\(playback.currentPositionMilliseconds);"
+        let coverName = playback.frameCover.isVisible ? "poster" : "video"
+        return "state=\(stateName);states=\(playback.observedStateNames.joined(separator: ","));cover=\(coverName);covers=\(playback.observedFrameCoverNames.joined(separator: ","));loops=\(playback.completedLoopCount);posterMs=\(playback.posterPresentationMilliseconds ?? -1);videoMs=\(playback.videoStartMilliseconds ?? -1);firstLoopMs=\(playback.firstLoopMilliseconds ?? -1);interruptions=\(playback.interruptionCount);positionMs=\(playback.currentPositionMilliseconds);"
     }
 #else
     @ViewBuilder
     private var validationPlaybackProbe: some View { EmptyView() }
 #endif
+}
+
+private struct ExercisePlayerSurface: UIViewRepresentable {
+    let player: AVQueuePlayer
+    let posterImage: UIImage?
+    let onAwaitingFrame: () -> Void
+    let onPresentedFrame: () -> Void
+
+    func makeUIView(context: Context) -> ExercisePlayerSurfaceView {
+        let view = ExercisePlayerSurfaceView()
+        view.configure(
+            player: player,
+            posterImage: posterImage,
+            onAwaitingFrame: onAwaitingFrame,
+            onPresentedFrame: onPresentedFrame
+        )
+        return view
+    }
+
+    func updateUIView(_ view: ExercisePlayerSurfaceView, context: Context) {
+        view.configure(
+            player: player,
+            posterImage: posterImage,
+            onAwaitingFrame: onAwaitingFrame,
+            onPresentedFrame: onPresentedFrame
+        )
+    }
+
+    static func dismantleUIView(_ view: ExercisePlayerSurfaceView, coordinator: ()) {
+        view.stopObserving()
+    }
+}
+
+private final class ExercisePlayerSurfaceView: UIView {
+    override class var layerClass: AnyClass { AVPlayerLayer.self }
+
+    private var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
+    private weak var configuredPlayer: AVQueuePlayer?
+    private weak var observedItem: AVPlayerItem?
+    private var currentItemObservation: NSKeyValueObservation?
+    private var periodicTimeObserver: Any?
+    private var videoOutput: AVPlayerItemVideoOutput?
+    private let coverImageView = UIImageView()
+    private let imageContext = CIContext(options: [.cacheIntermediates: false])
+    private var observationGeneration = 0
+    private var onAwaitingFrame: (() -> Void)?
+    private var onPresentedFrame: (() -> Void)?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+        isOpaque = false
+        playerLayer.backgroundColor = UIColor.clear.cgColor
+        playerLayer.isOpaque = false
+        playerLayer.videoGravity = .resizeAspect
+        coverImageView.contentMode = .scaleAspectFit
+        coverImageView.isUserInteractionEnabled = false
+        addSubview(coverImageView)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        coverImageView.frame = bounds
+    }
+
+    func configure(
+        player: AVQueuePlayer,
+        posterImage: UIImage?,
+        onAwaitingFrame: @escaping () -> Void,
+        onPresentedFrame: @escaping () -> Void
+    ) {
+        self.onAwaitingFrame = onAwaitingFrame
+        self.onPresentedFrame = onPresentedFrame
+        if coverImageView.image == nil {
+            coverImageView.image = posterImage
+        }
+        guard configuredPlayer !== player else { return }
+
+        stopObserving()
+        configuredPlayer = player
+        playerLayer.player = player
+        showFrameCover()
+        let generation = observationGeneration
+        currentItemObservation = player.observe(\.currentItem, options: [.initial, .new]) { [weak self] player, _ in
+            let update = { [weak self, weak player] in
+                guard let self,
+                      let player,
+                      self.observationGeneration == generation,
+                      self.configuredPlayer === player else { return }
+                self.observeFrames(from: player.currentItem)
+            }
+            if Thread.isMainThread {
+                update()
+            } else {
+                DispatchQueue.main.async(execute: update)
+            }
+        }
+        periodicTimeObserver = player.addPeriodicTimeObserver(
+            forInterval: CMTime(value: 1, timescale: 60),
+            queue: .main
+        ) { [weak self] time in
+            self?.recordFrameIfAvailable(at: time)
+        }
+    }
+
+    func stopObserving() {
+        observationGeneration += 1
+        currentItemObservation = nil
+        if let periodicTimeObserver, let configuredPlayer {
+            configuredPlayer.removeTimeObserver(periodicTimeObserver)
+        }
+        periodicTimeObserver = nil
+        detachVideoOutput()
+        configuredPlayer = nil
+        playerLayer.player = nil
+    }
+
+    private func observeFrames(from item: AVPlayerItem?) {
+        detachVideoOutput()
+        showFrameCover()
+        guard let item else { return }
+
+        let output = AVPlayerItemVideoOutput(
+            pixelBufferAttributes: [
+                kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_32BGRA)
+            ]
+        )
+        item.add(output)
+        observedItem = item
+        videoOutput = output
+        recordFrameIfAvailable(at: item.currentTime())
+    }
+
+    private func recordFrameIfAvailable(at currentTime: CMTime) {
+        guard let videoOutput, let observedItem else { return }
+        guard observedItem === configuredPlayer?.currentItem else {
+            showFrameCover()
+            return
+        }
+        let durationSeconds = CMTimeGetSeconds(observedItem.duration)
+        let currentSeconds = CMTimeGetSeconds(currentTime)
+        let remainingSeconds = durationSeconds - currentSeconds
+        let shouldCoverSeam = durationSeconds.isFinite
+            && currentSeconds.isFinite
+            && remainingSeconds > 0
+            && remainingSeconds <= 0.1
+        if shouldCoverSeam {
+            showFrameCover()
+        }
+        let itemTime = videoOutput.itemTime(forHostTime: CACurrentMediaTime())
+        guard itemTime.isValid else { return }
+        var displayTime = CMTime.invalid
+        guard let pixelBuffer = videoOutput.copyPixelBuffer(
+            forItemTime: itemTime,
+            itemTimeForDisplay: &displayTime
+        ) else { return }
+
+        if durationSeconds.isFinite,
+           currentSeconds.isFinite,
+           remainingSeconds > 0,
+           remainingSeconds <= 0.25 {
+            let image = CIImage(cvPixelBuffer: pixelBuffer)
+            if let cgImage = imageContext.createCGImage(image, from: image.extent) {
+                coverImageView.image = UIImage(cgImage: cgImage)
+            }
+        }
+        if shouldCoverSeam {
+            return
+        }
+        coverImageView.isHidden = true
+        onPresentedFrame?()
+    }
+
+    private func showFrameCover() {
+        coverImageView.isHidden = false
+        onAwaitingFrame?()
+    }
+
+    private func detachVideoOutput() {
+        if let observedItem, let videoOutput {
+            observedItem.remove(videoOutput)
+        }
+        observedItem = nil
+        videoOutput = nil
+    }
 }
 
 private struct ExercisePoster: View {

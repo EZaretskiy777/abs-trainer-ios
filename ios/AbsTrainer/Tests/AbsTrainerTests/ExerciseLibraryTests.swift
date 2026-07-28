@@ -25,6 +25,16 @@ final class ExerciseLibraryTests: XCTestCase {
         XCTAssertFalse(cover.isVisible)
     }
 
+    func testVideoFrameCoverPreservesPresentedHistoryAcrossLooperHandoff() {
+        var cover = ExerciseVideoFrameCover()
+        XCTAssertFalse(cover.hasPresentedFrame)
+        cover.recordPresentedFrame()
+
+        cover.awaitNextFrame()
+
+        XCTAssertTrue(cover.hasPresentedFrame)
+    }
+
     func testLocalContentCoversStarterCatalogInStableOrder() {
         XCTAssertEqual(
             ExerciseLibraryContentCatalog.local.map(\.exerciseID),

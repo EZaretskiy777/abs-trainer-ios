@@ -4,7 +4,7 @@
 
 This contract covers bundled, muted `AVQueuePlayer` playback in Exercise Detail. It does not change production copy, controls, layout, fallback, Reduce Motion, or playback policy. The accessibility probe and its counters are compiled only under `DEBUG` and are emitted only when the process is launched with `-ValidationMode YES`.
 
-Minimum target is iOS 16, the UI stack is SwiftUI with `VideoPlayer`, and the shared scheme is `AbsTrainer`.
+Minimum target is iOS 16, the UI stack is SwiftUI with a wrapped transparent `AVPlayerLayer`, and the shared scheme is `AbsTrainer`.
 
 ## DEBUG probe
 
@@ -15,6 +15,8 @@ The semicolon-delimited value is:
 ```text
 state=<poster|loading|ready|playing|failed>;
 states=<ordered transition history>;
+cover=<poster|video>;
+covers=<ordered poster/video cover history>;
 loops=<owned AVPlayerLooper items that posted DidPlayToEnd>;
 posterMs=<presentation start to poster onAppear, or -1>;
 videoMs=<presentation start to first positive player time while timeControlStatus is playing, or -1>;
@@ -27,12 +29,13 @@ Required automated contract:
 
 - `states` contains `poster,loading,ready,playing` in order;
 - current `state` reaches `playing` only when `AVQueuePlayer.timeControlStatus == .playing` and player time is positive;
+- `cover` reaches `video` only after `AVPlayerItemVideoOutput` reports a real pixel for the current queue item; `covers` contains `poster,video,poster,video` through the first loop item handoff;
 - `loops >= 1` and `firstLoopMs` is 3500...4500 for the validated four-second asset;
 - `interruptions == 0` through the first loop;
 - `posterMs >= 0`, `videoMs > 0`, and `videoMs >= posterMs`;
 - failures expose `state=failed` rather than remaining in loading.
 
-`posterMs` never creates its own clock origin. The parent establishes the presentation origin; if SwiftUI reports the child poster before the parent's `onAppear`, the probe records a pending poster event and resolves it to `0 ms` only when the independent parent origin starts, meaning the poster lifecycle event had already occurred by T0. `loops` increments only for a strongly-held item owned by this queue after `AVPlayerItemDidPlayToEndTime`; queue identity changes, setup, teardown, released-object identifier reuse, and unrelated players cannot increment it. `firstLoopMs` is read from that completed item's media timeline, so runner scheduling delay cannot make a valid four-second asset appear longer. A transition from actual playing to paused, waiting, loading, ready, or failed increments `interruptions`. This detects player-state regressions but cannot prove pixel luminance, so the CI screen recording remains the visual gate for a black-frame flash across the seam.
+`posterMs` never creates its own clock origin. The parent establishes the presentation origin; if SwiftUI reports the child poster before the parent's `onAppear`, the probe records a pending poster event and resolves it to `0 ms` only when the independent parent origin starts, meaning the poster lifecycle event had already occurred by T0. The poster is rendered above a transparent `AVPlayerLayer` until `AVPlayerItemVideoOutput` reports a real pixel for the current queue item. Every looper item change re-arms that cover, so the poster remains in the aperture instead of exposing the player layer's blank surface while the next item obtains its first frame. `loops` increments only for a strongly-held item owned by this queue after `AVPlayerItemDidPlayToEndTime`; queue identity changes, setup, teardown, released-object identifier reuse, and unrelated players cannot increment it. `firstLoopMs` is read from that completed item's media timeline, so runner scheduling delay cannot make a valid four-second asset appear longer. A transition from actual playing to paused, waiting, loading, ready, or failed increments `interruptions`. The frame-output probe verifies cover timing but cannot prove final composited luminance, so the CI screen recording remains the visual gate for a black-frame flash across the seam.
 
 ## Timing limitation and physical-device performance gate
 
