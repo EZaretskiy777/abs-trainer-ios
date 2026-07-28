@@ -331,7 +331,7 @@ struct SessionConfirmationModal: View {
 }
 
 enum DurationDialContract {
-    static let allowedValues = [5, 10, 15]
+    static let allowedValues = Array(5...15)
 
     static func nearestIndex(to value: Int, in values: [Int] = allowedValues) -> Int {
         values.indices.min { lhs, rhs in
@@ -435,14 +435,14 @@ struct TempoDurationDial: View {
     private var stepButtons: some View {
         stepButton(
             symbol: "minus",
-            label: "Уменьшить длительность на 5 минут",
+            label: "Уменьшить длительность на 1 минуту",
             identifier: "setup.durationDial.decrement",
             isAvailable: currentIndex > 0
         ) { select(index: currentIndex - 1) }
 
         stepButton(
             symbol: "plus",
-            label: "Увеличить длительность на 5 минут",
+            label: "Увеличить длительность на 1 минуту",
             identifier: "setup.durationDial.increment",
             isAvailable: currentIndex < allowedValues.count - 1
         ) { select(index: currentIndex + 1) }
@@ -519,7 +519,7 @@ struct TempoDurationDial: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Длительность тренировки")
         .accessibilityValue("\(value) минут")
-        .accessibilityHint("Смахните вверх или вниз, чтобы изменить на 5 минут. Также доступны кнопки уменьшения и увеличения.")
+        .accessibilityHint("Смахните вверх или вниз, чтобы изменить на 1 минуту. Также доступны кнопки уменьшения и увеличения.")
         .accessibilityIdentifier("setup.durationDial")
         .accessibilityAdjustableAction { direction in
             switch direction {

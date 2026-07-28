@@ -253,14 +253,13 @@ final class AbsTrainerUITests: XCTestCase {
     func testDurationDialTapAndDragSnapToAllowedValues() throws {
         let app = launchApp(viewport: CGSize(width: 440, height: 956))
         let dial = app.descendants(matching: .any)["setup.durationDial"]
-        let increment = app.buttons["setup.durationDial.increment"]
         XCTAssertTrue(dial.waitForExistence(timeout: 5))
         attachScreenshot(named: "duration-dial-10-minutes")
 
         dialPoint(.minimum, in: dial).tap()
         XCTAssertEqual(dial.value as? String, "5 минут")
         attachScreenshot(named: "duration-dial-5-minutes")
-        increment.tap()
+        dialPoint(.sixMinutes, in: dial).tap()
         XCTAssertEqual(dial.value as? String, "6 минут")
         attachScreenshot(named: "duration-dial-6-minutes")
         dialPoint(.midpoint, in: dial).tap()
@@ -270,6 +269,11 @@ final class AbsTrainerUITests: XCTestCase {
         attachScreenshot(named: "duration-dial-15-minutes")
 
         dialPoint(.maximum, in: dial).press(
+            forDuration: 0.1,
+            thenDragTo: dialPoint(.sixMinutes, in: dial)
+        )
+        XCTAssertEqual(dial.value as? String, "6 минут")
+        dialPoint(.sixMinutes, in: dial).press(
             forDuration: 0.1,
             thenDragTo: dialPoint(.minimum, in: dial)
         )
@@ -374,12 +378,14 @@ final class AbsTrainerUITests: XCTestCase {
 
     private enum DialStop {
         case minimum
+        case sixMinutes
         case midpoint
         case maximum
 
         var offset: CGVector {
             switch self {
             case .minimum: CGVector(dx: 0.20, dy: 0.80)
+            case .sixMinutes: CGVector(dx: 0.10, dy: 0.63)
             case .midpoint: CGVector(dx: 0.50, dy: 0.08)
             case .maximum: CGVector(dx: 0.80, dy: 0.80)
             }
