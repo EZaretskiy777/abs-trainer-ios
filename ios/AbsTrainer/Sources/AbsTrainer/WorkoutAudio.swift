@@ -252,6 +252,9 @@ final class WorkoutAudioCoordinator: NSObject, ObservableObject, AVSpeechSynthes
     private var observedIndex = 0
     private var deliveredVoiceEventSequence = 0
     private var speechActivitySequence = 0
+    private var hasStartedSession = false
+    private var activeSpeechPriority: CoachingPhrase.Priority?
+    private var deferredSpeechPhrases: [CoachingPhrase] = []
 
     init(
         preferences: WorkoutAudioPreferences,
@@ -277,6 +280,13 @@ final class WorkoutAudioCoordinator: NSObject, ObservableObject, AVSpeechSynthes
     }
 
     func start(plan: WorkoutPlan, onOpeningComplete: @escaping () -> Void) {
+        if hasStartedSession {
+            if openingCompletion == nil {
+                onOpeningComplete()
+            }
+            return
+        }
+        hasStartedSession = true
         sessionMuted = false
         scheduler = CoachingScheduler()
         lastCount = 0
@@ -520,10 +530,28 @@ final class WorkoutAudioCoordinator: NSObject, ObservableObject, AVSpeechSynthes
             completion?()
             return
         }
+        guard let incomingPriority = phrases.map(\.priority).max(by: { $0.rawValue < $1.rawValue }) else {
+            completion?()
+            return
+        }
+        let isSpeaking = speechController?.isSpeaking ?? speechSynthesizer.isSpeaking
+        if isSpeaking, let activeSpeechPriority {
+            if incomingPriority.rawValue < activeSpeechPriority.rawValue {
+                deferredSpeechPhrases = phrases
+                return
+            }
+            deferredSpeechPhrases.removeAll()
+            stopSpeech()
+        }
         speechActivitySequence += 1
+        let activitySequence = speechActivitySequence
+        activeSpeechPriority = incomingPriority
         if let speechController {
-            speechController.speak(phrases.map(\.text)) {
-                completion?()
+            speechController.speak(phrases.map(\.text)) { [weak self] in
+                self?.speechControllerDidFinish(
+                    activitySequence: activitySequence,
+                    completion: completion
+                )
             }
             return
         }
@@ -564,6 +592,7 @@ final class WorkoutAudioCoordinator: NSObject, ObservableObject, AVSpeechSynthes
 
     private func cancelSpeech() {
         speechActivitySequence += 1
+        deferredSpeechPhrases.removeAll()
         stopSpeech()
         finishOpeningPreRoll(cancelSpeech: false)
         deactivateSpeechOnlySessionIfNeeded()
@@ -577,6 +606,24 @@ final class WorkoutAudioCoordinator: NSObject, ObservableObject, AVSpeechSynthes
             speechSynthesizer.stopSpeaking(at: .immediate)
         }
         pendingOpeningUtterances = 0
+        activeSpeechPriority = nil
+    }
+
+    private func speechControllerDidFinish(
+        activitySequence: Int,
+        completion: (() -> Void)?
+    ) {
+        guard activitySequence == speechActivitySequence else { return }
+        activeSpeechPriority = nil
+        completion?()
+        speakDeferredPhrasesIfNeeded()
+    }
+
+    private func speakDeferredPhrasesIfNeeded() {
+        guard !deferredSpeechPhrases.isEmpty else { return }
+        let phrases = deferredSpeechPhrases
+        deferredSpeechPhrases.removeAll()
+        speak(phrases)
     }
 
     private func finishOpeningPreRoll(cancelSpeech: Bool) {
@@ -709,8 +756,10 @@ final class WorkoutAudioCoordinator: NSObject, ObservableObject, AVSpeechSynthes
             try? await Task.sleep(nanoseconds: 500_000_000)
             guard completedActivitySequence == speechActivitySequence,
                   !speechSynthesizer.isSpeaking else { return }
+            activeSpeechPriority = nil
             deactivateSpeechOnlySessionIfNeeded()
             applyIdleMusicGain()
+            speakDeferredPhrasesIfNeeded()
         }
     }
 

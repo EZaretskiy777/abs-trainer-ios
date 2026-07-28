@@ -234,6 +234,37 @@ final class WorkoutAudioCoordinatorTests: XCTestCase {
         XCTAssertEqual(store.remainingSeconds, 1)
     }
 
+    func testRepeatedStartDoesNotReplayOpeningOrCreateAnotherWatchdog() {
+        let speech = FakeSpeechController()
+        let watchdog = FakePreRollWatchdog()
+        let coordinator = makeCoordinator(speech: speech, watchdog: watchdog)
+        var firstCompletionCount = 0
+        var repeatedCompletionCount = 0
+
+        coordinator.start(plan: makePlan()) {
+            firstCompletionCount += 1
+        }
+        coordinator.start(plan: makePlan()) {
+            repeatedCompletionCount += 1
+        }
+
+        XCTAssertEqual(speech.batches.count, 1)
+        XCTAssertEqual(watchdog.scheduleCount, 1)
+        XCTAssertEqual(firstCompletionCount, 0)
+        XCTAssertEqual(repeatedCompletionCount, 0)
+
+        speech.completeCurrentBatch()
+        XCTAssertEqual(firstCompletionCount, 1)
+        XCTAssertEqual(repeatedCompletionCount, 0)
+
+        coordinator.start(plan: makePlan()) {
+            repeatedCompletionCount += 1
+        }
+        XCTAssertEqual(repeatedCompletionCount, 1)
+        XCTAssertEqual(speech.batches.count, 1)
+        XCTAssertEqual(watchdog.scheduleCount, 1)
+    }
+
     func testDisabledCoachCompletesOpeningImmediatelyWithoutWatchdog() {
         let speech = FakeSpeechController()
         let watchdog = FakePreRollWatchdog()
@@ -320,6 +351,34 @@ final class WorkoutAudioCoordinatorTests: XCTestCase {
             XCTAssertEqual(speech.batches.last, [CoachingScheduler.russianNumerals[expected - 1]])
             speech.completeCurrentBatch()
         }
+    }
+
+    func testTransitionPreemptsCadenceAndDefersLatestNumeralUntilTransitionCompletes() {
+        let speech = FakeSpeechController()
+        let watchdog = FakePreRollWatchdog()
+        let store = WorkoutSessionStore(plan: makePlan(), now: start)
+        let coordinator = makeCoordinator(speech: speech, watchdog: watchdog)
+        coordinator.start(plan: store.plan) {
+            store.completeFirstExercisePreparation(at: self.start)
+        }
+        speech.completeCurrentBatch()
+
+        store.tick(at: start.addingTimeInterval(3))
+        coordinator.tick(store: store)
+        XCTAssertEqual(speech.batches.last, ["Один"])
+
+        store.switchToManualCount()
+        coordinator.synchronize(store: store)
+        XCTAssertEqual(speech.stopCount, 1)
+        XCTAssertEqual(speech.batches.last, ["Ручной счёт."])
+
+        let batchCountDuringTransition = speech.batches.count
+        store.adjustManualCount(by: 1)
+        coordinator.synchronize(store: store)
+        XCTAssertEqual(speech.batches.count, batchCountDuringTransition)
+
+        speech.completeCurrentBatch()
+        XCTAssertEqual(speech.batches.last, ["Два"])
     }
 
     func testSafetyEventsPauseAudioWithoutCatchUpOrAutoResume() {
@@ -445,9 +504,11 @@ private final class FakeMusicController: WorkoutMusicControlling {
 @MainActor
 private final class FakePreRollWatchdog {
     private(set) var delay: TimeInterval?
+    private(set) var scheduleCount = 0
     private var action: (() -> Void)?
 
     func schedule(delay: TimeInterval, action: @escaping @MainActor () -> Void) -> () -> Void {
+        scheduleCount += 1
         self.delay = delay
         self.action = action
         return { [weak self] in self?.action = nil }
