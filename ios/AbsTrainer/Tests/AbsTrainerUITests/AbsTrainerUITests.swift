@@ -590,6 +590,43 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
+    func testMobbinAuditSetupPlanAndActiveContracts() throws {
+        let app = launchApp(viewport: CGSize(width: 393, height: 852))
+
+        let preset = app.descendants(matching: .any)["setup.presetSummary"]
+        XCTAssertTrue(preset.waitForExistence(timeout: 5))
+        XCTAssertTrue(preset.label.contains("Pulse Grid готов"))
+
+        app.buttons["Собрать тренировку"].tap()
+        let firstExercise = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'plan.row.exercise.'")
+        ).firstMatch
+        let firstRest = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'plan.row.rest.'")
+        ).firstMatch
+        XCTAssertTrue(firstExercise.waitForExistence(timeout: 5))
+        XCTAssertTrue(firstRest.waitForExistence(timeout: 3))
+        XCTAssertTrue(firstRest.label.localizedCaseInsensitiveContains("отдых"))
+
+        firstExercise.tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any).matching(
+                NSPredicate(format: "identifier BEGINSWITH 'exerciseDetail.screen.'")
+            ).firstMatch.waitForExistence(timeout: 3)
+        )
+        app.buttons["BackButton"].tap()
+
+        app.buttons["Начать тренировку"].tap()
+        let progress = app.descendants(matching: .any)["session.active.progress"]
+        let nextCard = app.descendants(matching: .any)["session.active.nextCard"]
+        XCTAssertTrue(progress.waitForExistence(timeout: 5))
+        XCTAssertTrue(progress.label.contains("из"))
+        XCTAssertTrue(nextCard.waitForExistence(timeout: 3))
+        XCTAssertTrue(nextCard.label.localizedCaseInsensitiveContains("дальше"))
+        attachScreenshot(named: "mobbin-audit-active-393x852")
+    }
+
+    @MainActor
     private func launchApp(
         viewport: CGSize? = nil,
         contentSizeCategory: String? = nil,
