@@ -674,6 +674,11 @@ final class AbsTrainerUITests: XCTestCase {
     private func openExerciseLibrary(in app: XCUIApplication) {
         let opener = app.buttons["setup.openExercises"]
         XCTAssertTrue(opener.waitForExistence(timeout: 5))
+        let setupScroll = app.scrollViews["setup.scroll"]
+        for _ in 0..<8 where !opener.isHittable {
+            setupScroll.swipeDown()
+        }
+        XCTAssertTrue(opener.isHittable)
         opener.tap()
         XCTAssertTrue(app.descendants(matching: .any)["exerciseLibrary.screen"].waitForExistence(timeout: 5))
     }
