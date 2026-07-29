@@ -34,16 +34,17 @@ struct ContentView: View {
                 .padding(.bottom, 88)
             }
             .accessibilityIdentifier("setup.scroll")
-            .background(TempoTokens.ColorToken.chalk.ignoresSafeArea())
+            .background(TempoTokens.ColorToken.auditCanvas.ignoresSafeArea())
             .safeAreaInset(edge: .bottom) {
                 TempoPrimaryButton(
                     title: "Собрать тренировку",
                     isLoading: isGenerating,
+                    style: .auditPrimary,
                     action: generatePlan
                 )
                 .padding(.horizontal, TempoTokens.Space.outer)
                 .padding(.vertical, TempoTokens.Space.sm)
-                .background(TempoTokens.ColorToken.chalk)
+                .background(TempoTokens.ColorToken.auditCanvas)
             }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: Route.self) { route in
@@ -54,6 +55,7 @@ struct ContentView: View {
                             plan: plan,
                             audioPreferences: audioPreferences,
                             onEditAudio: { path.removeLast() },
+                            onOpenExercise: { path.append(.exerciseDetail($0)) },
                             onStart: { path.append(.session) }
                         )
                     } else {
@@ -86,8 +88,8 @@ struct ContentView: View {
                 }
             }
         }
-        .tint(TempoTokens.ColorToken.carbon)
-        .preferredColorScheme(.light)
+        .tint(TempoTokens.ColorToken.auditPrimary)
+        .preferredColorScheme(.dark)
         .onAppear { setupTitleFocused = true }
         .onChange(of: path) { newPath in
             if newPath.isEmpty, wasExerciseLibraryOpen {
@@ -101,7 +103,10 @@ struct ContentView: View {
     private var setupContent: some View {
         if verticalSizeClass == .compact {
             HStack(alignment: .top, spacing: TempoTokens.Space.xxl) {
-                header
+                VStack(alignment: .leading, spacing: TempoTokens.Space.xl) {
+                    header
+                    sessionPresetSummary
+                }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 VStack(alignment: .leading, spacing: TempoTokens.Space.xxl) {
                     durationPicker
@@ -114,6 +119,7 @@ struct ContentView: View {
         } else {
             VStack(alignment: .leading, spacing: TempoTokens.Space.xxl) {
                 header
+                sessionPresetSummary
                 durationPicker
                 zonePicker
                 intensityPicker
@@ -129,7 +135,7 @@ struct ContentView: View {
                     .font(.caption.weight(.semibold))
                     .textCase(.uppercase)
                     .tracking(1.4)
-                    .foregroundStyle(TempoTokens.ColorToken.vermilion)
+                    .foregroundStyle(TempoTokens.ColorToken.auditPrimary)
                 Spacer(minLength: TempoTokens.Space.xs)
                 Button {
                     guard !isGenerating else { return }
@@ -147,14 +153,40 @@ struct ContentView: View {
             }
             Text("Соберите свой темп")
                 .font(.system(size: displayTitleSize, weight: .bold))
-                .foregroundStyle(TempoTokens.ColorToken.carbon)
+                .foregroundStyle(TempoTokens.ColorToken.auditText)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityFocused($setupTitleFocused)
             Text("Выберите длительность и нагрузку. План будет готов без регистрации.")
                 .font(.body)
-                .foregroundStyle(TempoTokens.ColorToken.muted)
+                .foregroundStyle(TempoTokens.ColorToken.auditMuted)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private var sessionPresetSummary: some View {
+        VStack(alignment: .leading, spacing: TempoTokens.Space.sm) {
+            Text("\(selectedDuration) минут · \(selectedZones.map(\.setupTitle).sorted().joined(separator: ", "))")
+                .font(.headline)
+                .foregroundStyle(TempoTokens.ColorToken.auditText)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("План соберётся локально: работа, отдых и понятный следующий шаг.")
+                .font(.subheadline)
+                .foregroundStyle(TempoTokens.ColorToken.auditMuted)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .center, spacing: TempoTokens.Space.sm) {
+                TempoRail(total: 8, current: 2)
+                    .accessibilityHidden(true)
+                Text("Pulse Grid готов")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(TempoTokens.ColorToken.auditPrimary)
+                    .fixedSize()
+            }
+        }
+        .padding(TempoTokens.Space.md)
+        .background(TempoTokens.ColorToken.auditSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("setup.presetSummary")
     }
 
     private var durationPicker: some View {
@@ -163,7 +195,8 @@ struct ContentView: View {
             TempoDurationDial(
                 value: $selectedDuration,
                 allowedValues: DurationDialContract.allowedValues,
-                isEnabled: !isGenerating
+                isEnabled: !isGenerating,
+                usesDarkCanvas: true
             )
         }
     }
@@ -178,6 +211,7 @@ struct ContentView: View {
                         isSelected: selectedZones.contains(zone),
                         selectedColor: zone == .full ? TempoTokens.ColorToken.ultramarine : TempoTokens.ColorToken.carbon,
                         isEnabled: !isGenerating,
+                        usesDarkCanvas: true,
                         accessibilityIdentifier: "setup.zone.\(zone.rawValue)",
                         action: { toggle(zone) }
                     )
@@ -199,7 +233,7 @@ struct ContentView: View {
             if let generationError {
                 Text(generationError)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(TempoTokens.ColorToken.signal)
+                    .foregroundStyle(TempoTokens.ColorToken.auditRest)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("setup.generationError")
             }
@@ -217,7 +251,7 @@ struct ContentView: View {
             Toggle(isOn: $audioPreferences.musicEnabled) {
                 VStack(alignment: .leading, spacing: TempoTokens.Space.xxs) {
                     Text("Музыка тренировки").font(.body.weight(.semibold))
-                    Text("Оригинальный ритм").font(.caption).foregroundStyle(TempoTokens.ColorToken.muted)
+                    Text("Оригинальный ритм").font(.caption).foregroundStyle(TempoTokens.ColorToken.auditMuted)
                 }
             }
             .frame(minHeight: 64)
@@ -243,7 +277,7 @@ struct ContentView: View {
             Toggle(isOn: $audioPreferences.voiceCoachEnabled) {
                 VStack(alignment: .leading, spacing: TempoTokens.Space.xxs) {
                     Text("Голосовой тренер").font(.body.weight(.semibold))
-                    Text("Переходы и темп").font(.caption).foregroundStyle(TempoTokens.ColorToken.muted)
+                    Text("Переходы и темп").font(.caption).foregroundStyle(TempoTokens.ColorToken.auditMuted)
                 }
             }
             .frame(minHeight: 64)
@@ -252,7 +286,7 @@ struct ContentView: View {
 
             Text("Музыка и голос работают без сети. Системные подсказки VoiceOver всегда важнее голосового тренера.")
                 .font(.caption)
-                .foregroundStyle(TempoTokens.ColorToken.muted)
+                .foregroundStyle(TempoTokens.ColorToken.auditMuted)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .disabled(isGenerating)
@@ -266,6 +300,7 @@ struct ContentView: View {
                 title: intensity.title,
                 isSelected: selectedIntensity == intensity,
                 isEnabled: !isGenerating,
+                usesDarkCanvas: true,
                 accessibilityIdentifier: "setup.intensity.\(intensity.rawValue)"
             ) {
                 selectedIntensity = intensity
@@ -291,13 +326,13 @@ struct ContentView: View {
     private func sectionTitle(_ title: String) -> some View {
         Text(title)
             .font(.title3.weight(.semibold))
-            .foregroundStyle(TempoTokens.ColorToken.carbon)
+            .foregroundStyle(TempoTokens.ColorToken.auditText)
     }
 
     private func sectionValue(_ value: String, alignment: TextAlignment) -> some View {
         Text(value)
             .font(.caption.weight(.semibold))
-            .foregroundStyle(TempoTokens.ColorToken.muted)
+            .foregroundStyle(TempoTokens.ColorToken.auditMuted)
             .multilineTextAlignment(alignment)
     }
 

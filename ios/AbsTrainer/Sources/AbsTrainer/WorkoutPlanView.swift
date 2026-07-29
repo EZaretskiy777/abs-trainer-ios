@@ -4,6 +4,7 @@ struct WorkoutPlanView: View {
     let plan: WorkoutPlan
     @ObservedObject var audioPreferences: WorkoutAudioPreferences
     let onEditAudio: () -> Void
+    let onOpenExercise: (String) -> Void
     let onStart: () -> Void
     @Environment(\.dismiss) private var dismiss
     @ScaledMetric(relativeTo: .largeTitle) private var planTitleSize = 36
@@ -18,6 +19,9 @@ struct WorkoutPlanView: View {
                 LazyVStack(spacing: 0) {
                     ForEach(plan.items) { item in
                         workoutRow(item)
+                        if item.order < plan.items.count, item.restAfterSec > 0 {
+                            restRow(after: item)
+                        }
                     }
                 }
             }
@@ -25,16 +29,16 @@ struct WorkoutPlanView: View {
             .padding(.top, TempoTokens.Space.xs)
             .padding(.bottom, 88)
         }
-        .background(TempoTokens.ColorToken.chalk.ignoresSafeArea())
+        .background(TempoTokens.ColorToken.auditCanvas.ignoresSafeArea())
         .safeAreaInset(edge: .bottom) {
-            TempoPrimaryButton(title: "Начать тренировку", action: onStart)
+            TempoPrimaryButton(title: "Начать тренировку", style: .auditPrimary, action: onStart)
                 .padding(.horizontal, TempoTokens.Space.outer)
                 .padding(.vertical, TempoTokens.Space.sm)
-                .background(TempoTokens.ColorToken.chalk)
+                .background(TempoTokens.ColorToken.auditCanvas)
         }
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
-        .preferredColorScheme(.light)
+        .preferredColorScheme(.dark)
         .onAppear { planTitleFocused = true }
     }
 
@@ -53,7 +57,7 @@ struct WorkoutPlanView: View {
             Spacer()
             Color.clear.frame(width: 48, height: 48)
         }
-        .foregroundStyle(TempoTokens.ColorToken.carbon)
+        .foregroundStyle(TempoTokens.ColorToken.auditText)
     }
 
     private var summary: some View {
@@ -62,10 +66,10 @@ struct WorkoutPlanView: View {
                 .font(.caption.weight(.semibold))
                 .textCase(.uppercase)
                 .tracking(1.2)
-                .foregroundStyle(TempoTokens.ColorToken.vermilion)
-            Text("\(plan.targetDurationMin) минут\nбез спешки")
+                .foregroundStyle(TempoTokens.ColorToken.auditPrimary)
+            Text("План на \(plan.targetDurationMin) минут")
                 .font(.system(size: planTitleSize, weight: .bold))
-                .foregroundStyle(TempoTokens.ColorToken.carbon)
+                .foregroundStyle(TempoTokens.ColorToken.auditText)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityFocused($planTitleFocused)
             ViewThatFits(in: .horizontal) {
@@ -93,7 +97,8 @@ struct WorkoutPlanView: View {
             .font(.caption.weight(.semibold))
             .padding(.horizontal, TempoTokens.Space.sm)
             .frame(minHeight: 32)
-            .background(TempoTokens.ColorToken.chalkSubtle)
+            .foregroundStyle(TempoTokens.ColorToken.auditText)
+            .background(TempoTokens.ColorToken.auditInteractive)
             .clipShape(Capsule())
     }
 
@@ -111,10 +116,10 @@ struct WorkoutPlanView: View {
         }
         .padding(.vertical, TempoTokens.Space.md)
         .overlay(alignment: .top) {
-            Rectangle().fill(TempoTokens.ColorToken.carbon.opacity(0.16)).frame(height: 1)
+            Rectangle().fill(TempoTokens.ColorToken.auditMuted.opacity(0.35)).frame(height: 1)
         }
         .overlay(alignment: .bottom) {
-            Rectangle().fill(TempoTokens.ColorToken.carbon.opacity(0.16)).frame(height: 1)
+            Rectangle().fill(TempoTokens.ColorToken.auditMuted.opacity(0.35)).frame(height: 1)
         }
     }
 
@@ -128,7 +133,7 @@ struct WorkoutPlanView: View {
                  ? "Голосовой тренер включён"
                  : "Голосовой тренер выключен")
                 .font(.caption)
-                .foregroundStyle(TempoTokens.ColorToken.muted)
+                .foregroundStyle(TempoTokens.ColorToken.auditMuted)
         }
         .fixedSize(horizontal: false, vertical: true)
         .accessibilityIdentifier("plan.audio.summary")
@@ -143,37 +148,65 @@ struct WorkoutPlanView: View {
     }
 
     private func workoutRow(_ item: WorkoutItem) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: TempoTokens.Space.md) {
-            Text(String(format: "%02d", item.order))
-                .font(.subheadline.weight(.semibold).monospacedDigit())
-                .foregroundStyle(TempoTokens.ColorToken.vermilion)
-                .frame(width: 28, alignment: .leading)
+        Button { onOpenExercise(item.exercise.id) } label: {
+            HStack(alignment: .firstTextBaseline, spacing: TempoTokens.Space.md) {
+                Text(String(format: "%02d", item.order))
+                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(TempoTokens.ColorToken.auditPrimary)
+                    .frame(width: 28, alignment: .leading)
+                VStack(alignment: .leading, spacing: TempoTokens.Space.xxs) {
+                    Text(item.exercise.title)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(TempoTokens.ColorToken.auditText)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(item.exercise.zones.first?.title ?? "Весь пресс")
+                        .font(.caption)
+                        .foregroundStyle(TempoTokens.ColorToken.auditMuted)
+                }
+                Spacer(minLength: TempoTokens.Space.xs)
+                Text(prescriptionTitle(item.prescription))
+                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(TempoTokens.ColorToken.auditPrimary)
+                    .fixedSize()
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(TempoTokens.ColorToken.auditMuted)
+                    .accessibilityHidden(true)
+            }
+            .padding(TempoTokens.Space.md)
+            .background(TempoTokens.ColorToken.auditInteractive)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(workoutRowAccessibilityLabel(item))
+        .accessibilityHint("Открывает технику и упрощённый вариант")
+        .accessibilityIdentifier("plan.row.exercise.\(item.exercise.id)")
+    }
 
+    private func restRow(after item: WorkoutItem) -> some View {
+        let next = plan.items[item.order]
+        return HStack(spacing: TempoTokens.Space.md) {
+            Image(systemName: "pause.fill").accessibilityHidden(true)
             VStack(alignment: .leading, spacing: TempoTokens.Space.xxs) {
-                Text(item.exercise.title)
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(TempoTokens.ColorToken.carbon)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text("\(item.exercise.zones.first?.title ?? "Весь пресс") · отдых \(item.restAfterSec) сек")
+                Text("ОТДЫХ").font(.caption.weight(.bold))
+                Text("Дальше: \(next.exercise.title)")
                     .font(.caption)
-                    .foregroundStyle(TempoTokens.ColorToken.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: TempoTokens.Space.xs)
-            Text(prescriptionTitle(item.prescription))
+            Text("\(item.restAfterSec) сек")
                 .font(.subheadline.weight(.semibold).monospacedDigit())
-                .foregroundStyle(TempoTokens.ColorToken.carbon)
-                .fixedSize()
         }
-        .padding(.vertical, TempoTokens.Space.md)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(TempoTokens.ColorToken.carbon.opacity(0.16))
-                .frame(height: 1)
-        }
+        .foregroundStyle(TempoTokens.ColorToken.auditRest)
+        .padding(.horizontal, TempoTokens.Space.md)
+        .frame(minHeight: TempoTokens.Size.minimumTap)
+        .background(TempoTokens.ColorToken.auditRest.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(workoutRowAccessibilityLabel(item))
+        .accessibilityLabel("Отдых \(item.restAfterSec) секунд. Дальше \(next.exercise.title)")
+        .accessibilityIdentifier("plan.row.rest.\(item.order)")
     }
 
     private func prescriptionTitle(_ prescription: WorkoutPrescription) -> String {
@@ -212,6 +245,7 @@ struct WorkoutPlanView: View {
             plan: .preview,
             audioPreferences: WorkoutAudioPreferences(),
             onEditAudio: {},
+            onOpenExercise: { _ in },
             onStart: {}
         )
     }

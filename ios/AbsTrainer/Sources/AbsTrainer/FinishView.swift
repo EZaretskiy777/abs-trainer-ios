@@ -17,22 +17,22 @@ struct FinishView: View {
                     .font(.caption.weight(.semibold))
                     .textCase(.uppercase)
                     .tracking(1.2)
-                    .foregroundStyle(TempoTokens.ColorToken.vermilion)
+                    .foregroundStyle(TempoTokens.ColorToken.auditPrimary)
                     .accessibilityIdentifier("finish.eyebrow")
 
                 completionSymbol
 
-                Text("Темп\nвыдержан.")
+                Text("Отличная работа")
                     .font(.system(size: finishTitleSize, weight: .bold))
-                    .foregroundStyle(TempoTokens.ColorToken.carbon)
+                    .foregroundStyle(TempoTokens.ColorToken.auditText)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("finish.title")
                     .accessibilityFocused($finishTitleFocused)
                 Text(skippedCount == 0
-                     ? "Все упражнения выполнены. Результат сохранён только на этом устройстве."
-                     : "Тренировка завершена с пропусками. Результат сохранён только на этом устройстве.")
+                     ? "Выполнено \(completedCount) из \(plan.items.count) упражнений. Результат сохранён только на этом устройстве."
+                     : "Выполнено \(completedCount) из \(plan.items.count), пропущено \(skippedCount). Результат сохранён только на этом устройстве.")
                     .font(.body)
-                    .foregroundStyle(TempoTokens.ColorToken.muted)
+                    .foregroundStyle(TempoTokens.ColorToken.auditMuted)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("finish.body")
 
@@ -41,7 +41,7 @@ struct FinishView: View {
                         result(value: WorkoutSessionStore.format(seconds: elapsedSeconds), label: "фактическое время")
                             .accessibilityIdentifier("finish.elapsedResult")
                         Divider()
-                            .overlay(TempoTokens.ColorToken.carbon.opacity(0.16))
+                            .overlay(TempoTokens.ColorToken.auditMuted.opacity(0.35))
                         result(value: "\(completedCount) / \(plan.items.count)", label: "упражнений")
                             .accessibilityIdentifier("finish.completedResult")
                     }
@@ -49,30 +49,36 @@ struct FinishView: View {
                         result(value: WorkoutSessionStore.format(seconds: elapsedSeconds), label: "фактическое время")
                             .accessibilityIdentifier("finish.elapsedResult")
                         Divider()
-                            .overlay(TempoTokens.ColorToken.carbon.opacity(0.16))
+                            .overlay(TempoTokens.ColorToken.auditMuted.opacity(0.35))
                         result(value: "\(completedCount) / \(plan.items.count)", label: "упражнений")
                             .accessibilityIdentifier("finish.completedResult")
                     }
                 }
                 .padding(.vertical, TempoTokens.Space.md)
                 .overlay(alignment: .top) {
-                    Rectangle().fill(TempoTokens.ColorToken.carbon.opacity(0.16)).frame(height: 1)
+                    Rectangle().fill(TempoTokens.ColorToken.auditMuted.opacity(0.35)).frame(height: 1)
                 }
                 .overlay(alignment: .bottom) {
-                    Rectangle().fill(TempoTokens.ColorToken.carbon.opacity(0.16)).frame(height: 1)
+                    Rectangle().fill(TempoTokens.ColorToken.auditMuted.opacity(0.35)).frame(height: 1)
                 }
 
                 Text("Пропущено: \(skippedCount)")
                     .font(.body.weight(.semibold))
-                    .foregroundStyle(TempoTokens.ColorToken.muted)
+                    .foregroundStyle(TempoTokens.ColorToken.auditMuted)
                     .accessibilityIdentifier("finish.skippedResult")
+
+                Text("Фокус: \(plan.selectedZones.map(\.title).joined(separator: ", "))")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(TempoTokens.ColorToken.auditText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("finish.zonesResult")
             }
             .padding(.horizontal, TempoTokens.Space.outer)
             .padding(.top, TempoTokens.Space.huge)
             .padding(.bottom, 148)
         }
-        .background(TempoTokens.ColorToken.chalk.ignoresSafeArea())
-        .preferredColorScheme(.light)
+        .background(TempoTokens.ColorToken.auditCanvas.ignoresSafeArea())
+        .preferredColorScheme(.dark)
         .onAppear { finishTitleFocused = true }
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: TempoTokens.Space.xs) {
@@ -80,13 +86,14 @@ struct FinishView: View {
                     title: "Повторить тренировку",
                     symbol: "arrow.counterclockwise",
                     layout: .balancedTrailingSymbol,
+                    style: .auditPrimary,
                     action: onRepeat
                 )
                 .accessibilityIdentifier("finish.repeat")
                 Button(action: onNewWorkout) {
                     Text("Настроить новую")
                         .font(.headline)
-                        .foregroundStyle(TempoTokens.ColorToken.carbon)
+                        .foregroundStyle(TempoTokens.ColorToken.auditText)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, minHeight: 48)
@@ -97,17 +104,17 @@ struct FinishView: View {
             }
             .padding(.horizontal, TempoTokens.Space.outer)
             .padding(.vertical, TempoTokens.Space.sm)
-            .background(TempoTokens.ColorToken.chalk)
+            .background(TempoTokens.ColorToken.auditCanvas)
         }
     }
 
     private var completionSymbol: some View {
         ZStack {
             Circle()
-                .stroke(TempoTokens.ColorToken.vermilion, lineWidth: 18)
+                .stroke(TempoTokens.ColorToken.auditPrimary, lineWidth: 12)
             Image(systemName: "checkmark")
                 .font(.system(size: 52, weight: .bold))
-                .foregroundStyle(TempoTokens.ColorToken.carbon)
+                .foregroundStyle(TempoTokens.ColorToken.auditText)
         }
         .frame(width: 154, height: 154)
         .accessibilityHidden(true)
@@ -117,12 +124,12 @@ struct FinishView: View {
         VStack(alignment: .leading, spacing: TempoTokens.Space.xxs) {
             Text(value)
                 .font(.title2.weight(.semibold).monospacedDigit())
-                .foregroundStyle(TempoTokens.ColorToken.carbon)
+                .foregroundStyle(TempoTokens.ColorToken.auditText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
             Text(label)
                 .font(.caption)
-                .foregroundStyle(TempoTokens.ColorToken.muted)
+                .foregroundStyle(TempoTokens.ColorToken.auditMuted)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

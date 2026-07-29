@@ -63,6 +63,15 @@ enum TempoTokens {
         static let ultramarine = Color("TempoUltramarine")
         static let moss = Color("TempoMoss")
         static let signal = Color("TempoSignal")
+        static let auditCanvas = Color(red: 0.020, green: 0.027, blue: 0.039)
+        static let auditSurface = Color(red: 0.063, green: 0.094, blue: 0.153)
+        static let auditInteractive = Color(red: 0.090, green: 0.133, blue: 0.208)
+        static let auditPrimary = Color(red: 0.208, green: 0.839, blue: 0.627)
+        static let auditPrimaryInk = Color(red: 0.012, green: 0.125, blue: 0.098)
+        static let auditText = Color(red: 0.969, green: 0.973, blue: 0.980)
+        static let auditMuted = Color(red: 0.620, green: 0.659, blue: 0.722)
+        static let auditInfo = Color(red: 0.275, green: 0.722, blue: 0.941)
+        static let auditRest = Color(red: 1.000, green: 0.698, blue: 0.278)
     }
 
     enum Space {
@@ -105,11 +114,17 @@ struct TempoPrimaryButton: View {
         case balancedTrailingSymbol
     }
 
+    enum Style {
+        case carbon
+        case auditPrimary
+    }
+
     let title: String
     var symbol: String? = "arrow.right"
     var isLoading = false
     var isEnabled = true
     var layout: Layout = .leading
+    var style: Style = .carbon
     let action: () -> Void
 
     var body: some View {
@@ -156,8 +171,8 @@ struct TempoPrimaryButton: View {
             .padding(.horizontal, layout == .balancedTrailingSymbol ? TempoTokens.Space.xs : TempoTokens.Space.lg)
             .padding(.vertical, layout == .balancedTrailingSymbol ? TempoTokens.Space.sm : 0)
             .frame(maxWidth: .infinity, minHeight: TempoTokens.Size.primaryControl)
-            .foregroundStyle(.white)
-            .background(TempoTokens.ColorToken.carbon)
+            .foregroundStyle(style == .auditPrimary ? TempoTokens.ColorToken.auditPrimaryInk : .white)
+            .background(style == .auditPrimary ? TempoTokens.ColorToken.auditPrimary : TempoTokens.ColorToken.carbon)
             .clipShape(RoundedRectangle(cornerRadius: TempoTokens.Radius.button, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -171,6 +186,7 @@ struct InverseIconButton: View {
     let symbol: String
     let size: CGFloat
     let accessibilityLabel: String
+    var foreground = Color.white
     let action: () -> Void
 
     @Environment(\.colorSchemeContrast) private var accessibilityContrast
@@ -179,20 +195,20 @@ struct InverseIconButton: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: size >= TempoTokens.Size.pauseControl ? 17 : 16, weight: .semibold))
-                .foregroundStyle(Color.white)
+                .foregroundStyle(foreground)
                 .frame(width: size, height: size)
                 .contentShape(Circle())
                 .background(Color.white.opacity(0.001))
                 .overlay {
                     Circle().stroke(
-                        Color.white.opacity(accessibilityContrast == .increased ? 1 : 0.50),
+                        foreground.opacity(accessibilityContrast == .increased ? 1 : 0.50),
                         lineWidth: accessibilityContrast == .increased ? 2 : 1
                     )
                 }
                 .clipShape(Circle())
         }
         .buttonStyle(.plain)
-        .tint(.white)
+        .tint(foreground)
         .accessibilityLabel(accessibilityLabel)
     }
 }
@@ -370,6 +386,7 @@ struct TempoDurationDial: View {
     @Binding var value: Int
     var allowedValues = DurationDialContract.allowedValues
     var isEnabled = true
+    var usesDarkCanvas = false
     var onCommit: ((Int) -> Void)?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -393,6 +410,14 @@ struct TempoDurationDial: View {
     private var progress: CGFloat {
         guard allowedValues.count > 1 else { return 0 }
         return CGFloat(currentIndex) / CGFloat(allowedValues.count - 1)
+    }
+
+    private var dialPrimary: Color {
+        usesDarkCanvas ? TempoTokens.ColorToken.auditText : TempoTokens.ColorToken.carbon
+    }
+
+    private var dialSecondary: Color {
+        usesDarkCanvas ? TempoTokens.ColorToken.auditMuted : TempoTokens.ColorToken.muted
     }
 
     var body: some View {
@@ -477,7 +502,7 @@ struct TempoDurationDial: View {
             Circle()
                 .trim(from: 0, to: 0.75)
                 .stroke(
-                    TempoTokens.ColorToken.carbon.opacity(accessibilityContrast == .increased ? 0.32 : 0.12),
+                    dialPrimary.opacity(accessibilityContrast == .increased ? 0.48 : 0.22),
                     style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
                 )
                 .rotationEffect(.degrees(135))
@@ -486,15 +511,15 @@ struct TempoDurationDial: View {
                 .trim(from: 0, to: 0.75 * progress)
                 .stroke(
                     accessibilityContrast == .increased
-                        ? TempoTokens.ColorToken.carbon
-                        : TempoTokens.ColorToken.vermilion,
+                        ? dialPrimary
+                        : (usesDarkCanvas ? TempoTokens.ColorToken.auditPrimary : TempoTokens.ColorToken.vermilion),
                     style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
                 )
                 .rotationEffect(.degrees(135))
 
             ForEach(allowedValues.indices, id: \.self) { index in
                 Rectangle()
-                    .fill(index <= currentIndex ? TempoTokens.ColorToken.carbon : TempoTokens.ColorToken.muted)
+                    .fill(index <= currentIndex ? dialPrimary : dialSecondary)
                     .frame(width: accessibilityContrast == .increased ? 3 : 2, height: 12)
                     .offset(y: -radius)
                     .rotationEffect(.degrees(-135 + 270 * fraction(for: index)))
@@ -502,10 +527,10 @@ struct TempoDurationDial: View {
             }
 
             Circle()
-                .fill(TempoTokens.ColorToken.carbon)
+                .fill(dialPrimary)
                 .overlay(
                     Circle().stroke(
-                        TempoTokens.ColorToken.chalk,
+                        usesDarkCanvas ? TempoTokens.ColorToken.auditCanvas : TempoTokens.ColorToken.chalk,
                         lineWidth: accessibilityContrast == .increased ? 4 : 3
                     )
                 )
@@ -520,9 +545,9 @@ struct TempoDurationDial: View {
                     .lineLimit(1)
                 Text("минут")
                     .font(.callout.weight(.semibold))
-                    .foregroundStyle(TempoTokens.ColorToken.muted)
+                    .foregroundStyle(dialSecondary)
             }
-            .foregroundStyle(TempoTokens.ColorToken.carbon)
+            .foregroundStyle(dialPrimary)
             .frame(width: 104, height: 104)
             .accessibilityHidden(true)
         }
@@ -584,11 +609,11 @@ struct TempoDurationDial: View {
             Image(systemName: symbol)
                 .font(.title2.weight(.semibold))
                 .frame(width: 52, height: 52)
-                .foregroundStyle(TempoTokens.ColorToken.carbon)
-                .background(TempoTokens.ColorToken.carbon.opacity(0.001))
+                .foregroundStyle(dialPrimary)
+                .background(dialPrimary.opacity(0.001))
                 .overlay {
                     Circle().stroke(
-                        TempoTokens.ColorToken.carbon.opacity(accessibilityContrast == .increased ? 0.32 : 0.16),
+                        dialPrimary.opacity(accessibilityContrast == .increased ? 0.48 : 0.24),
                         lineWidth: accessibilityContrast == .increased ? 2 : 1
                     )
                 }
@@ -674,6 +699,7 @@ struct TempoChoiceCell: View {
     let isSelected: Bool
     var selectedColor = TempoTokens.ColorToken.carbon
     var isEnabled = true
+    var usesDarkCanvas = false
     var accessibilityIdentifier: String?
     let action: () -> Void
 
@@ -700,11 +726,14 @@ struct TempoChoiceCell: View {
             }
             .padding(.horizontal, TempoTokens.Space.md)
             .frame(maxWidth: .infinity, minHeight: TempoTokens.Size.zoneChoice, alignment: .leading)
-            .foregroundStyle(isSelected ? Color.white : TempoTokens.ColorToken.carbon)
-            .background(isSelected ? selectedColor : Color.clear)
+            .foregroundStyle(isSelected ? selectedForeground : unselectedForeground)
+            .background(isSelected ? selectedBackground : unselectedBackground)
             .overlay {
                 RoundedRectangle(cornerRadius: TempoTokens.Radius.small, style: .continuous)
-                    .stroke(isSelected ? selectedColor : TempoTokens.ColorToken.carbon.opacity(0.18), lineWidth: isSelected ? 2 : 1)
+                    .stroke(
+                        isSelected ? selectedBackground : unselectedForeground.opacity(0.24),
+                        lineWidth: isSelected ? 2 : 1
+                    )
             }
             .clipShape(RoundedRectangle(cornerRadius: TempoTokens.Radius.small, style: .continuous))
         }
@@ -714,6 +743,22 @@ struct TempoChoiceCell: View {
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityValue(isSelected ? "Выбрано" : "Не выбрано")
         .accessibilityIdentifier(accessibilityIdentifier ?? "")
+    }
+
+    private var selectedBackground: Color {
+        usesDarkCanvas ? TempoTokens.ColorToken.auditPrimary : selectedColor
+    }
+
+    private var selectedForeground: Color {
+        usesDarkCanvas ? TempoTokens.ColorToken.auditPrimaryInk : .white
+    }
+
+    private var unselectedForeground: Color {
+        usesDarkCanvas ? TempoTokens.ColorToken.auditText : TempoTokens.ColorToken.carbon
+    }
+
+    private var unselectedBackground: Color {
+        usesDarkCanvas ? TempoTokens.ColorToken.auditInteractive : .clear
     }
 }
 

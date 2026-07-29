@@ -380,6 +380,7 @@ struct ExerciseLibraryView: View {
         .navigationTitle("Упражнения")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $filter.query, prompt: "Найти упражнение")
+        .preferredColorScheme(.light)
         .accessibilityIdentifier("exerciseLibrary.screen")
     }
 
@@ -645,9 +646,10 @@ struct ExerciseDetailView: View {
             }
             .padding(TempoTokens.Space.outer)
         }
-        .background(TempoTokens.ColorToken.chalk.ignoresSafeArea())
+        .background(TempoTokens.ColorToken.auditCanvas.ignoresSafeArea())
         .navigationTitle(exercise.title)
         .navigationBarTitleDisplayMode(.inline)
+        .preferredColorScheme(.dark)
         .accessibilityIdentifier("exerciseDetail.screen.\(exercise.id)")
     }
 
@@ -656,11 +658,12 @@ struct ExerciseDetailView: View {
             VStack(alignment: .leading, spacing: TempoTokens.Space.sm) {
                 Text(exercise.title)
                     .font(.title.bold())
+                    .foregroundStyle(TempoTokens.ColorToken.auditText)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("exerciseDetail.title")
                 Text("\(exercise.zones.map(\.title).joined(separator: " · ")) · \(exercise.difficulty.title)")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(TempoTokens.ColorToken.muted)
+                    .foregroundStyle(TempoTokens.ColorToken.auditMuted)
                     .accessibilityIdentifier("exerciseDetail.metadata")
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: TempoTokens.Space.xs) { timingLabels }
@@ -671,9 +674,24 @@ struct ExerciseDetailView: View {
             orderedSection(title: "Как выполнять", items: content.phases, identifier: "exerciseDetail.phases")
             orderedSection(title: "Обратите внимание", items: content.cues, identifier: "exerciseDetail.cues")
 
+            VStack(alignment: .leading, spacing: TempoTokens.Space.sm) {
+                Text("Упрощённый вариант")
+                    .font(.title3.bold())
+                    .foregroundStyle(TempoTokens.ColorToken.auditText)
+                Text("Уменьшите амплитуду и сохраняйте контролируемый темп без боли.")
+                    .font(.body)
+                    .foregroundStyle(TempoTokens.ColorToken.auditMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(TempoTokens.Space.md)
+            .background(TempoTokens.ColorToken.auditInteractive)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("exerciseDetail.easierVariant")
+
             Text(ExerciseLibraryContentCatalog.disclaimer)
                 .font(.footnote)
-                .foregroundStyle(TempoTokens.ColorToken.muted)
+                .foregroundStyle(TempoTokens.ColorToken.auditMuted)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("exerciseDetail.disclaimer")
         }
@@ -689,30 +707,32 @@ struct ExerciseDetailView: View {
     private func metadataPill(_ title: String, color: Color) -> some View {
         Text(title)
             .font(.caption.weight(.bold))
-            .foregroundStyle(TempoTokens.ColorToken.carbon)
+            .foregroundStyle(TempoTokens.ColorToken.auditText)
             .padding(.horizontal, TempoTokens.Space.sm)
             .frame(minHeight: TempoTokens.Size.minimumTap)
             .overlay(alignment: .leading) {
                 Rectangle().fill(color).frame(width: 4)
             }
-            .background(TempoTokens.ColorToken.chalkSubtle)
+            .background(TempoTokens.ColorToken.auditInteractive)
     }
 
     private func orderedSection(title: String, items: [String], identifier: String) -> some View {
         VStack(alignment: .leading, spacing: TempoTokens.Space.md) {
             Text(title)
                 .font(.title3.bold())
+                .foregroundStyle(TempoTokens.ColorToken.auditText)
             ForEach(Array(items.enumerated()), id: \.offset) { index, item in
                 HStack(alignment: .top, spacing: TempoTokens.Space.sm) {
                     Text("\(index + 1)")
                         .font(.headline)
                         .frame(width: 28, height: 28)
-                        .background(TempoTokens.ColorToken.carbon)
-                        .foregroundStyle(TempoTokens.ColorToken.chalk)
+                        .background(TempoTokens.ColorToken.auditPrimary)
+                        .foregroundStyle(TempoTokens.ColorToken.auditPrimaryInk)
                         .clipShape(Circle())
                         .accessibilityHidden(true)
                     Text(item)
                         .font(.body)
+                        .foregroundStyle(TempoTokens.ColorToken.auditText)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityLabel("Шаг \(index + 1). \(item)")
                 }
@@ -723,8 +743,9 @@ struct ExerciseDetailView: View {
     }
 }
 
-private struct ExerciseMotionAperture: View {
+struct ExerciseMotionAperture: View {
     let exercise: Exercise
+    var isPaused = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
@@ -845,6 +866,7 @@ private struct ExerciseMotionAperture: View {
                 playback.setPlaybackAllowed(false)
             }
         }
+        .onChange(of: isPaused) { _ in startIfNeeded() }
         .onChange(of: reduceMotion) { _ in startIfNeeded() }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
             playback.tearDown()
@@ -858,7 +880,7 @@ private struct ExerciseMotionAperture: View {
     }
 
     private func startIfNeeded() {
-        guard !staticMode, scenePhase == .active else {
+        guard !staticMode, !isPaused, scenePhase == .active else {
             playback.setPlaybackAllowed(false)
             return
         }

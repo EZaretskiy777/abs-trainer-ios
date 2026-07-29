@@ -56,14 +56,14 @@ final class AbsTrainerUITests: XCTestCase {
                 let confirmation = app.descendants(matching: .any)["session.confirmation.finishSetEarly"]
                 XCTAssertTrue(confirmation.waitForExistence(timeout: 2))
                 app.buttons["session.confirmation.finishSetEarly.destructive"].tap()
-                if app.staticTexts["Темп\nвыдержан."].waitForExistence(timeout: 0.5) { break }
+                if app.descendants(matching: .any)["finish.title"].waitForExistence(timeout: 0.5) { break }
                 continue
             }
 
             let confirmSet = app.buttons["Подтвердить набор"]
             if confirmSet.exists {
                 confirmSet.tap()
-                if app.staticTexts["Темп\nвыдержан."].waitForExistence(timeout: 0.5) { break }
+                if app.descendants(matching: .any)["finish.title"].waitForExistence(timeout: 0.5) { break }
                 continue
             }
 
@@ -73,7 +73,7 @@ final class AbsTrainerUITests: XCTestCase {
         }
 
         XCTAssertTrue(capturedRest)
-        XCTAssertTrue(app.staticTexts["Темп\nвыдержан."].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["finish.title"].waitForExistence(timeout: 5))
         attachScreenshot(named: "04-finish")
     }
 

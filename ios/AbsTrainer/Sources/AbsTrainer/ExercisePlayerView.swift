@@ -101,7 +101,7 @@ struct ExercisePlayerView: View {
                     .accessibilityValue(validationFocusProbe)
             }
         }
-        .preferredColorScheme(store.phase == .finished ? .light : .dark)
+        .preferredColorScheme(store.phase == .rest ? .light : .dark)
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
         .animation(
@@ -174,7 +174,8 @@ struct ExercisePlayerView: View {
                         }
                     }
 
-                    ExerciseMediaAperture(exercise: store.currentItem.exercise)
+                    ExerciseMotionAperture(exercise: store.currentItem.exercise, isPaused: store.isPaused)
+                        .accessibilityIdentifier("session.active.athleteStage")
 
                     if validationMode {
                         activeProgressComposition
@@ -185,6 +186,12 @@ struct ExercisePlayerView: View {
                             .accessibilityIdentifier("session.active.countdownGroup")
                     }
 
+                    TempoRail(total: plan.items.count, current: store.currentIndex)
+                        .accessibilityLabel("\(store.currentIndex + 1) из \(plan.items.count) упражнений")
+                        .accessibilityIdentifier("session.active.progress")
+
+                    nextExerciseCard
+
                     if case .repetitionBased = store.currentItem.prescription {
                         repetitionControls
                     }
@@ -194,6 +201,7 @@ struct ExercisePlayerView: View {
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(inverseSecondaryColor)
                             .accessibilityIdentifier("session.audio.status")
+                            .accessibilityHidden(true)
                     }
                 }
                 .padding(.horizontal, TempoTokens.Space.outer)
@@ -245,7 +253,8 @@ struct ExercisePlayerView: View {
             InverseIconButton(
                 symbol: "xmark",
                 size: TempoTokens.Size.iconControl,
-                accessibilityLabel: "Завершить тренировку"
+                accessibilityLabel: "Завершить тренировку",
+                foreground: sessionControlColor
             ) {
                 presentConfirmation(.exitSession, opener: .exitButton)
             }
@@ -254,13 +263,15 @@ struct ExercisePlayerView: View {
             Spacer()
             Text(String(format: "%02d / %02d", store.currentIndex + 1, plan.items.count))
                 .font(.subheadline.weight(.semibold).monospacedDigit())
+                .foregroundStyle(sessionControlColor)
             Spacer()
             InverseIconButton(
                 symbol: audioCoordinator.sessionMuted ? "speaker.slash.fill" : "speaker.wave.2.fill",
                 size: TempoTokens.Size.iconControl,
                 accessibilityLabel: audioCoordinator.sessionMuted
                     ? "Включить звук этой тренировки"
-                    : "Выключить звук этой тренировки"
+                    : "Выключить звук этой тренировки",
+                foreground: sessionControlColor
             ) {
                 audioCoordinator.setSessionMuted(!audioCoordinator.sessionMuted)
             }
@@ -280,19 +291,19 @@ struct ExercisePlayerView: View {
                         .font(.caption.weight(.semibold))
                         .textCase(.uppercase)
                         .tracking(1.2)
-                        .foregroundStyle(inverseSecondaryColor)
-                    Text("Вдох.\nМедленный\nвыдох.")
+                        .foregroundStyle(TempoTokens.ColorToken.auditRest)
+                    Text("Отдых")
                         .font(.system(size: restTitleSize, weight: .bold))
-                        .foregroundStyle(TempoTokens.SemanticColor.inversePrimary.color)
+                        .foregroundStyle(TempoTokens.ColorToken.carbon)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityFocused($focusedElement, equals: .stateTitle)
                     Text("\(store.remainingSeconds)")
                         .font(.system(size: restTimerSize, weight: .semibold).monospacedDigit())
-                        .foregroundStyle(TempoTokens.SemanticColor.inversePrimary.color)
+                        .foregroundStyle(TempoTokens.ColorToken.carbon)
                         .minimumScaleFactor(0.75)
                         .lineLimit(1)
                     Capsule()
-                        .fill(TempoTokens.SemanticColor.inverseDivider.color)
+                        .fill(TempoTokens.ColorToken.carbon.opacity(0.24))
                         .frame(height: 2)
                         .padding(.vertical, TempoTokens.Space.md)
                         .accessibilityHidden(true)
@@ -301,8 +312,8 @@ struct ExercisePlayerView: View {
                 .padding(.vertical, TempoTokens.Space.xl)
             }
         }
-        .foregroundStyle(.white)
-        .tint(.white)
+        .foregroundStyle(TempoTokens.ColorToken.carbon)
+        .tint(TempoTokens.ColorToken.carbon)
         .safeAreaInset(edge: .bottom) {
             restBottomBlock
         }
@@ -369,7 +380,7 @@ struct ExercisePlayerView: View {
     private func nextTitle(_ item: WorkoutItem) -> some View {
         Text(item.exercise.title)
             .font(.title3.weight(.semibold))
-            .foregroundStyle(TempoTokens.SemanticColor.inversePrimary.color)
+            .foregroundStyle(TempoTokens.ColorToken.carbon)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityIdentifier("session.rest.nextTitle")
     }
@@ -377,7 +388,7 @@ struct ExercisePlayerView: View {
     private func nextDuration(_ item: WorkoutItem) -> some View {
         Text(prescriptionDisplay(item.prescription))
             .font(.headline.monospacedDigit())
-            .foregroundStyle(TempoTokens.SemanticColor.inversePrimary.color)
+            .foregroundStyle(TempoTokens.ColorToken.carbon)
             .fixedSize()
             .accessibilityIdentifier("session.rest.nextDuration")
     }
@@ -533,6 +544,32 @@ struct ExercisePlayerView: View {
             .accessibilityIdentifier("session.active.timerContext")
     }
 
+    private var nextExerciseCard: some View {
+        let title = store.nextItem?.exercise.title ?? "Финиш тренировки"
+        let context = store.nextItem == nil
+            ? "Это последнее упражнение"
+            : "После отдыха \(store.currentItem.restAfterSec) секунд"
+        return VStack(alignment: .leading, spacing: TempoTokens.Space.xxs) {
+            Text("ДАЛЬШЕ")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(TempoTokens.ColorToken.auditPrimary)
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(TempoTokens.ColorToken.auditText)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(context)
+                .font(.caption)
+                .foregroundStyle(TempoTokens.ColorToken.auditMuted)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(TempoTokens.Space.md)
+        .background(TempoTokens.ColorToken.auditInteractive)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Дальше. \(title). \(context)")
+        .accessibilityIdentifier("session.active.nextCard")
+    }
+
     private var restBottomBlock: some View {
         VStack(alignment: .leading, spacing: TempoTokens.Space.md) {
             if let next = store.nextItem {
@@ -540,7 +577,7 @@ struct ExercisePlayerView: View {
                     Text("Дальше · \(next.order) из \(plan.items.count)")
                         .font(.caption.weight(.semibold))
                         .textCase(.uppercase)
-                        .foregroundStyle(inverseSecondaryColor)
+                        .foregroundStyle(TempoTokens.ColorToken.muted)
                         .accessibilityIdentifier("session.rest.nextEyebrow")
                     ViewThatFits(in: .horizontal) {
                         HStack(alignment: .firstTextBaseline) {
@@ -556,38 +593,42 @@ struct ExercisePlayerView: View {
                 }
                 .padding(.vertical, TempoTokens.Space.md)
                 .overlay(alignment: .top) {
-                    Rectangle().fill(TempoTokens.SemanticColor.inverseDivider.color).frame(height: 1)
+                    Rectangle().fill(TempoTokens.ColorToken.carbon.opacity(0.18)).frame(height: 1)
                         .accessibilityHidden(true)
                 }
                 .overlay(alignment: .bottom) {
-                    Rectangle().fill(TempoTokens.SemanticColor.inverseDivider.color).frame(height: 1)
+                    Rectangle().fill(TempoTokens.ColorToken.carbon.opacity(0.18)).frame(height: 1)
                         .accessibilityHidden(true)
                 }
             }
 
             Button("Пропустить отдых") { store.skipRest() }
                 .font(.headline)
-                .foregroundStyle(TempoTokens.SemanticColor.inversePrimary.color)
+                .foregroundStyle(TempoTokens.ColorToken.carbon)
                 .frame(maxWidth: .infinity, minHeight: TempoTokens.Size.primaryControl)
                 .contentShape(Rectangle())
                 .overlay {
                     RoundedRectangle(cornerRadius: TempoTokens.Radius.button, style: .continuous)
-                        .stroke(inverseControlBorderColor, lineWidth: accessibilityContrast == .increased ? 2 : 1)
+                        .stroke(TempoTokens.ColorToken.carbon, lineWidth: accessibilityContrast == .increased ? 2 : 1)
                 }
                 .accessibilityIdentifier("session.rest.skip")
         }
         .padding(.horizontal, TempoTokens.Space.outer)
         .padding(.vertical, TempoTokens.Space.sm)
-        .background(TempoTokens.ColorToken.ultramarine)
-        .tint(.white)
+        .background(TempoTokens.ColorToken.chalk)
+        .tint(TempoTokens.ColorToken.carbon)
     }
 
     private var sessionBackground: Color {
         switch store.phase {
-        case .exercise: return TempoTokens.ColorToken.carbon
-        case .rest: return TempoTokens.ColorToken.ultramarine
-        case .finished: return TempoTokens.ColorToken.chalk
+        case .exercise: return TempoTokens.ColorToken.auditCanvas
+        case .rest: return TempoTokens.ColorToken.chalk
+        case .finished: return TempoTokens.ColorToken.auditCanvas
         }
+    }
+
+    private var sessionControlColor: Color {
+        store.phase == .rest ? TempoTokens.ColorToken.carbon : .white
     }
 
     private var isModalPresented: Bool {
