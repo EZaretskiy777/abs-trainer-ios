@@ -94,15 +94,16 @@ final class AbsTrainerUITests: XCTestCase {
         XCTAssertEqual(balanced.value as? String, "Выбрано")
         XCTAssertEqual(light.value as? String, "Не выбрано")
 
-        upper.tap()
-        lower.tap()
+        let visibleFrame = visibleFrame(above: setup, in: app.windows.firstMatch)
+        let setupScroll = app.scrollViews["setup.scroll"]
+        XCTAssertTrue(setupScroll.waitForExistence(timeout: 3))
+        scrollIntoView([upper, lower], in: app, visibleFrame: visibleFrame, scrollSurface: setupScroll)
+        tapAndWaitForValue(upper, value: "Выбрано")
+        tapAndWaitForValue(lower, value: "Выбрано")
         XCTAssertEqual(full.value as? String, "Не выбрано")
         XCTAssertEqual(upper.value as? String, "Выбрано")
         XCTAssertEqual(lower.value as? String, "Выбрано")
 
-        let visibleFrame = visibleFrame(above: setup, in: app.windows.firstMatch)
-        let setupScroll = app.scrollViews["setup.scroll"]
-        XCTAssertTrue(setupScroll.waitForExistence(timeout: 3))
         scrollIntoView([high], in: app, visibleFrame: visibleFrame, scrollSurface: setupScroll)
         XCTAssertTrue(high.isHittable)
         assertContained(high.frame, in: visibleFrame)
@@ -269,7 +270,18 @@ final class AbsTrainerUITests: XCTestCase {
     func testDurationDialTapAndDragSnapToAllowedValues() throws {
         let app = launchApp(viewport: CGSize(width: 440, height: 956))
         let dial = app.descendants(matching: .any)["setup.durationDial"]
+        let setup = app.buttons["Собрать тренировку"]
+        let setupScroll = app.scrollViews["setup.scroll"]
         XCTAssertTrue(dial.waitForExistence(timeout: 5))
+        XCTAssertTrue(setup.waitForExistence(timeout: 5))
+        XCTAssertTrue(setupScroll.waitForExistence(timeout: 3))
+        scrollIntoView(
+            [dial],
+            in: app,
+            visibleFrame: visibleFrame(above: setup, in: app.windows.firstMatch),
+            scrollSurface: setupScroll
+        )
+        XCTAssertTrue(dial.isHittable)
 
         dialPoint(.minimum, in: dial).tap()
         XCTAssertEqual(dial.value as? String, "5 минут")
@@ -348,8 +360,18 @@ final class AbsTrainerUITests: XCTestCase {
     func testExerciseLibrarySearchFiltersDetailAndSetupState() throws {
         let app = launchApp(viewport: CGSize(width: 393, height: 852))
         let upperSetup = app.buttons["setup.zone.upper"]
+        let setup = app.buttons["Собрать тренировку"]
+        let setupScroll = app.scrollViews["setup.scroll"]
         XCTAssertTrue(upperSetup.waitForExistence(timeout: 5))
-        upperSetup.tap()
+        XCTAssertTrue(setup.waitForExistence(timeout: 5))
+        XCTAssertTrue(setupScroll.waitForExistence(timeout: 3))
+        scrollIntoView(
+            [upperSetup],
+            in: app,
+            visibleFrame: visibleFrame(above: setup, in: app.windows.firstMatch),
+            scrollSurface: setupScroll
+        )
+        tapAndWaitForValue(upperSetup, value: "Выбрано")
 
         openExerciseLibrary(in: app)
         let count = app.staticTexts["exerciseLibrary.resultCount"]
