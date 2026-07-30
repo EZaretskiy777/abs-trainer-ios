@@ -180,6 +180,7 @@ struct ExercisePlayerView: View {
                         isPaused: store.isPaused,
                         onMediaAvailabilityChange: { mediaUnavailable = $0 }
                     )
+                        .allowsHitTesting(false)
                         .accessibilityIdentifier("session.active.athleteStage")
 
                     if mediaUnavailable {
@@ -220,7 +221,6 @@ struct ExercisePlayerView: View {
                 .padding(.horizontal, TempoTokens.Space.outer)
                 .padding(.vertical, TempoTokens.Space.xl)
                 .padding(.bottom, 80)
-                .contentShape(Rectangle())
             }
             .accessibilityIdentifier("session.active.scroll")
         }
