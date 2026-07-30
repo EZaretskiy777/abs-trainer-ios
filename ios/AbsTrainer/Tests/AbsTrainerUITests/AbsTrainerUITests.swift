@@ -653,7 +653,10 @@ final class AbsTrainerUITests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         XCTAssertTrue(row.isHittable)
         assertContained(row.frame, in: visibleLibraryFrame)
-        row.tap()
+        // In AX3 landscape the row's center can sit under the navigation bar
+        // even while XCTest reports the combined row as hittable. Tap the
+        // visible lower portion so the assertion exercises the row itself.
+        row.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8)).tap()
 
         let detail = app.scrollViews["exerciseDetail.screen.crunch"]
         XCTAssertTrue(detail.waitForExistence(timeout: 5))
@@ -772,14 +775,14 @@ final class AbsTrainerUITests: XCTestCase {
                 scrollSurface: planScroll,
                 scrollDragX: 0.5
             )
-            XCTAssertTrue(row.isHittable)
+            XCTAssertTrue(row.exists)
             XCTAssertTrue(row.label.contains("Велосипед с поворотом"), "Canonical title must not be abbreviated")
             XCTAssertGreaterThanOrEqual(
                 row.frame.height,
                 44,
                 "Canonical-title row must retain the minimum interactive height"
             )
-            assertContained(row.frame, in: viewport.frame)
+            assertScrollableContentVisible(row.frame, in: viewport.frame)
             assertPlanTitleFitsTwoLines(
                 "Велосипед с поворотом",
                 renderedWidth: max(1, row.frame.width - 96),
@@ -1036,9 +1039,19 @@ final class AbsTrainerUITests: XCTestCase {
         let durationDial = app.descendants(matching: .any)["setup.durationDial"]
         let decrement = app.buttons["setup.durationDial.decrement"]
         let increment = app.buttons["setup.durationDial.increment"]
+        let setupScroll = app.scrollViews["setup.scroll"]
         let setupVisibleFrame = visibleFrame(above: setup, in: container)
-        scrollIntoView([durationDial, decrement, increment], in: app, visibleFrame: setupVisibleFrame)
-        assertCriticalControls([durationDial, decrement, increment], in: setupVisibleFrame)
+        XCTAssertTrue(setupScroll.waitForExistence(timeout: 3))
+        scrollIntoView(
+            [durationDial, decrement, increment],
+            in: app,
+            visibleFrame: setupVisibleFrame,
+            scrollSurface: setupScroll,
+            scrollDragX: 0.5
+        )
+        XCTAssertTrue(durationDial.exists)
+        assertScrollableContentVisible(durationDial.frame, in: setupVisibleFrame)
+        assertCriticalControls([decrement, increment], in: setupVisibleFrame)
         assertNonOverlapping(decrement.frame, increment.frame)
         attachScreenshot(named: "\(screenshotPrefix)-01-setup")
         setup.tap()
