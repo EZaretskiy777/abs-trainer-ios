@@ -7,6 +7,7 @@ struct WorkoutPlanView: View {
     let onOpenExercise: (String) -> Void
     let onStart: () -> Void
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .largeTitle) private var planTitleSize = 36
     @AccessibilityFocusState private var planTitleFocused: Bool
 
@@ -151,37 +152,23 @@ struct WorkoutPlanView: View {
 
     private func workoutRow(_ item: WorkoutItem) -> some View {
         Button { onOpenExercise(item.exercise.id) } label: {
-            HStack(alignment: .top, spacing: TempoTokens.Space.md) {
-                Text(String(format: "%02d", item.order))
-                    .font(.subheadline.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(TempoTokens.ColorToken.auditPrimary)
-                    .frame(width: 28, alignment: .leading)
-                VStack(alignment: .leading, spacing: TempoTokens.Space.xxs) {
-                    Text(item.exercise.title)
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(TempoTokens.ColorToken.auditText)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.68)
-                        .allowsTightening(true)
-                        .layoutPriority(1)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityIdentifier("plan.row.title.\(item.exercise.id)")
-                    ViewThatFits(in: .horizontal) {
-                        HStack(alignment: .firstTextBaseline, spacing: TempoTokens.Space.xs) {
-                            workoutZone(item)
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: TempoTokens.Space.xs) {
+                        HStack(alignment: .center) {
+                            workoutOrder(item)
                             Spacer(minLength: TempoTokens.Space.xs)
-                            workoutPrescription(item)
+                            workoutDisclosure
                         }
-                        VStack(alignment: .leading, spacing: TempoTokens.Space.xxs) {
-                            workoutZone(item)
-                            workoutPrescription(item)
-                        }
+                        workoutDetails(item)
+                    }
+                } else {
+                    HStack(alignment: .top, spacing: TempoTokens.Space.md) {
+                        workoutOrder(item)
+                        workoutDetails(item)
+                        workoutDisclosure
                     }
                 }
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(TempoTokens.ColorToken.auditMuted)
-                    .accessibilityHidden(true)
             }
             .padding(TempoTokens.Space.md)
             .background(TempoTokens.ColorToken.auditInteractive)
@@ -192,6 +179,45 @@ struct WorkoutPlanView: View {
         .accessibilityLabel(workoutRowAccessibilityLabel(item))
         .accessibilityHint("Открывает технику и упрощённый вариант")
         .accessibilityIdentifier("plan.row.exercise.\(item.exercise.id)")
+    }
+
+    private func workoutOrder(_ item: WorkoutItem) -> some View {
+        Text(String(format: "%02d", item.order))
+            .font(.subheadline.weight(.semibold).monospacedDigit())
+            .foregroundStyle(TempoTokens.ColorToken.auditPrimary)
+            .frame(width: 28, alignment: .leading)
+    }
+
+    private func workoutDetails(_ item: WorkoutItem) -> some View {
+        VStack(alignment: .leading, spacing: TempoTokens.Space.xxs) {
+            Text(item.exercise.title)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(TempoTokens.ColorToken.auditText)
+                .lineLimit(2)
+                .minimumScaleFactor(0.68)
+                .allowsTightening(true)
+                .layoutPriority(1)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("plan.row.title.\(item.exercise.id)")
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: TempoTokens.Space.xs) {
+                    workoutZone(item)
+                    Spacer(minLength: TempoTokens.Space.xs)
+                    workoutPrescription(item)
+                }
+                VStack(alignment: .leading, spacing: TempoTokens.Space.xxs) {
+                    workoutZone(item)
+                    workoutPrescription(item)
+                }
+            }
+        }
+    }
+
+    private var workoutDisclosure: some View {
+        Image(systemName: "chevron.right")
+            .font(.caption.weight(.bold))
+            .foregroundStyle(TempoTokens.ColorToken.auditMuted)
+            .accessibilityHidden(true)
     }
 
     private func workoutZone(_ item: WorkoutItem) -> some View {

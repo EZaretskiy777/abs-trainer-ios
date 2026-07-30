@@ -785,7 +785,7 @@ final class AbsTrainerUITests: XCTestCase {
             assertScrollableContentVisible(row.frame, in: viewport.frame)
             assertPlanTitleFitsTwoLines(
                 "Велосипед с поворотом",
-                renderedWidth: max(1, row.frame.width - 96),
+                renderedWidth: max(1, row.frame.width - (configuration.category == nil ? 96 : 32)),
                 contentSizeCategory: configuration.category == nil
                     ? .large
                     : .accessibilityExtraExtraExtraLarge,
@@ -1260,6 +1260,13 @@ final class AbsTrainerUITests: XCTestCase {
                     forDuration: 0.05,
                     thenDragTo: surface.coordinate(withNormalizedOffset: CGVector(dx: dragX, dy: endY))
                 )
+            if controls.map(\.frame) == frames {
+                if shouldRevealTop {
+                    surface.swipeDown()
+                } else {
+                    surface.swipeUp()
+                }
+            }
         }
     }
 
