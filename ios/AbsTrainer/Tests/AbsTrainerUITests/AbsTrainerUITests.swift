@@ -643,8 +643,8 @@ final class AbsTrainerUITests: XCTestCase {
         XCTAssertTrue(libraryScroll.waitForExistence(timeout: 5))
         XCTAssertTrue(search.waitForExistence(timeout: 3))
         let visibleLibraryFrame = visibleFrame(above: search, in: app.windows.firstMatch)
-        scrollIntoView(
-            [row],
+        scrollIntoSubstantialView(
+            row,
             in: app,
             visibleFrame: visibleLibraryFrame,
             scrollSurface: libraryScroll,
@@ -652,7 +652,7 @@ final class AbsTrainerUITests: XCTestCase {
         )
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         XCTAssertTrue(row.isHittable)
-        assertContained(row.frame, in: visibleLibraryFrame)
+        assertScrollableContentVisible(row.frame, in: visibleLibraryFrame)
         // In AX3 landscape the row's center can sit under the navigation bar
         // even while XCTest reports the combined row as hittable. Tap the
         // visible lower portion so the assertion exercises the row itself.
@@ -1274,7 +1274,8 @@ final class AbsTrainerUITests: XCTestCase {
         for _ in 0..<8 {
             let frame = control.frame
             let visible = frame.intersection(visibleFrame)
-            if !visible.isNull,
+            if control.isHittable,
+               !visible.isNull,
                visible.height >= min(frame.height, visibleFrame.height) * 0.35 {
                 return
             }
@@ -1289,6 +1290,13 @@ final class AbsTrainerUITests: XCTestCase {
                     forDuration: 0.05,
                     thenDragTo: surface.coordinate(withNormalizedOffset: CGVector(dx: dragX, dy: endY))
                 )
+            if control.frame.equalTo(frame) {
+                if shouldRevealTop {
+                    surface.swipeDown()
+                } else {
+                    surface.swipeUp()
+                }
+            }
         }
     }
 
