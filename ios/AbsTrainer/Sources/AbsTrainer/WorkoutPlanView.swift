@@ -10,13 +10,6 @@ struct WorkoutPlanView: View {
     @ScaledMetric(relativeTo: .largeTitle) private var planTitleSize = 36
     @AccessibilityFocusState private var planTitleFocused: Bool
 
-    private var validationMode: Bool {
-        #if DEBUG
-        ProcessInfo.processInfo.arguments.contains("-ValidationMode")
-        #else
-        false
-        #endif
-    }
 
     var body: some View {
         ScrollView {
@@ -195,7 +188,7 @@ struct WorkoutPlanView: View {
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.plain)
-        .accessibilityElement(children: validationMode ? .contain : .combine)
+        .accessibilityElement(children: .combine)
         .accessibilityLabel(workoutRowAccessibilityLabel(item))
         .accessibilityHint("Открывает технику и упрощённый вариант")
         .accessibilityIdentifier("plan.row.exercise.\(item.exercise.id)")

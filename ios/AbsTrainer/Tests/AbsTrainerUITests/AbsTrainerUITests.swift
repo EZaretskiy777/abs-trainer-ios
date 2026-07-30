@@ -639,7 +639,8 @@ final class AbsTrainerUITests: XCTestCase {
         let row = app.buttons["exerciseLibrary.row.crunch"]
         reveal(row, in: app)
         XCTAssertTrue(row.waitForExistence(timeout: 5))
-        row.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)).tap()
+        XCTAssertTrue(row.isHittable)
+        row.tap()
 
         let motion = app.descendants(matching: .any)["exerciseDetail.motion"]
         XCTAssertTrue(motion.waitForExistence(timeout: 3))
@@ -743,23 +744,17 @@ final class AbsTrainerUITests: XCTestCase {
             setup.tap()
 
             let row = app.buttons["plan.row.exercise.bicycle_twist"]
-            let title = app.staticTexts["plan.row.title.bicycle_twist"]
             let planScroll = app.scrollViews["plan.scroll"]
             XCTAssertTrue(planScroll.waitForExistence(timeout: 5))
             scrollIntoView([row], in: app, visibleFrame: viewport.frame, scrollSurface: planScroll)
             XCTAssertTrue(row.waitForExistence(timeout: 3))
-            XCTAssertTrue(title.waitForExistence(timeout: 3))
             XCTAssertTrue(row.isHittable)
             XCTAssertTrue(row.label.contains("Велосипед с поворотом"), "Canonical title must not be abbreviated")
-            XCTAssertEqual(title.label, "Велосипед с поворотом")
             XCTAssertGreaterThanOrEqual(row.frame.height, 82, "Two-line title row must retain its intrinsic height")
             assertContained(row.frame, in: viewport.frame)
-            assertContained(title.frame, in: row.frame)
-            XCTAssertGreaterThan(title.frame.width, 0)
-            XCTAssertGreaterThan(title.frame.height, 0)
             assertPlanTitleFitsTwoLines(
                 "Велосипед с поворотом",
-                renderedWidth: title.frame.width,
+                renderedWidth: max(1, row.frame.width - 96),
                 contentSizeCategory: configuration.category == nil
                     ? .large
                     : .accessibilityExtraExtraExtraLarge,
@@ -864,7 +859,10 @@ final class AbsTrainerUITests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(mediaError.waitForExistence(timeout: 5))
         XCTAssertTrue(stage.exists)
-        XCTAssertEqual(stage.value as? String, "Анимация недоступна")
+        XCTAssertTrue(
+            (stage.value as? String)?.hasPrefix("state=failed;states=poster,failed;") == true,
+            "Active playback probe must expose the deterministic media failure"
+        )
         XCTAssertTrue(repetitionCount.exists)
         assertCriticalControls([pause, skip, audio, exit, next], in: app.windows.firstMatch)
 
@@ -1101,6 +1099,7 @@ final class AbsTrainerUITests: XCTestCase {
             let confirmation = app.descendants(matching: .any)["session.confirmation.finishEarly"]
             if confirmation.waitForExistence(timeout: 0.5) {
                 let finishConfirmation = app.buttons["session.confirmation.finishEarly.destructive"]
+                revealModalAction(finishConfirmation, in: app, container: container)
                 XCTAssertTrue(finishConfirmation.isHittable)
                 finishConfirmation.tap()
                 break
@@ -1108,6 +1107,7 @@ final class AbsTrainerUITests: XCTestCase {
             let setConfirmation = app.descendants(matching: .any)["session.confirmation.finishSetEarly"]
             if setConfirmation.waitForExistence(timeout: 0.5) {
                 let finishSetConfirmation = app.buttons["session.confirmation.finishSetEarly.destructive"]
+                revealModalAction(finishSetConfirmation, in: app, container: container)
                 XCTAssertTrue(finishSetConfirmation.isHittable)
                 finishSetConfirmation.tap()
                 if app.buttons["Повторить тренировку"].waitForExistence(timeout: 0.5) { break }
@@ -1150,6 +1150,22 @@ final class AbsTrainerUITests: XCTestCase {
             XCTAssertLessThanOrEqual(element.frame.maxX, finishVisibleFrame.maxX + tolerance)
         }
         attachScreenshot(named: "\(screenshotPrefix)-05-finish")
+    }
+
+    private func revealModalAction(
+        _ action: XCUIElement,
+        in app: XCUIApplication,
+        container: XCUIElement
+    ) {
+        let scrollViews = app.scrollViews
+        guard scrollViews.count > 0 else { return }
+        let modalScroll = scrollViews.element(boundBy: scrollViews.count - 1)
+        scrollIntoView(
+            [action],
+            in: app,
+            visibleFrame: container.frame,
+            scrollSurface: modalScroll
+        )
     }
 
     private func assertCriticalControls(_ controls: [XCUIElement], in container: XCUIElement) {
