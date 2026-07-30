@@ -300,6 +300,31 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
+    func testSetupZoneHitTargetsRemainInteractiveAtCompactAndStandardWidths() throws {
+        for size in [CGSize(width: 320, height: 568), CGSize(width: 393, height: 852)] {
+            let app = launchApp(viewport: size)
+            let upper = app.buttons["setup.zone.upper"]
+            let setup = app.buttons["Собрать тренировку"]
+            let setupScroll = app.scrollViews["setup.scroll"]
+
+            XCTAssertTrue(upper.waitForExistence(timeout: 5))
+            XCTAssertTrue(setup.waitForExistence(timeout: 5))
+            XCTAssertTrue(setupScroll.waitForExistence(timeout: 3))
+            let visible = visibleFrame(above: setup, in: app.windows.firstMatch)
+            scrollIntoView([upper], in: app, visibleFrame: visible, scrollSurface: setupScroll)
+            XCTAssertTrue(upper.isHittable)
+            assertContained(upper.frame, in: visible)
+            XCTAssertGreaterThanOrEqual(upper.frame.width, 44)
+            XCTAssertGreaterThanOrEqual(upper.frame.height, 44)
+
+            upper.tap()
+            XCTAssertTrue(wait(for: NSPredicate(format: "value == %@", "Выбрано"), object: upper, timeout: 2))
+            attachScreenshot(named: "setup-zone-hit-target-\(Int(size.width))x\(Int(size.height))")
+            app.terminate()
+        }
+    }
+
+    @MainActor
     func testDurationDialAdjustableIncrementAndDecrementPreserveContract() throws {
         let app = launchApp(viewport: CGSize(width: 440, height: 956))
         let dial = app.descendants(matching: .any)["setup.durationDial"]

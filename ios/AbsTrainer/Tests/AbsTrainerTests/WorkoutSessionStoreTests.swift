@@ -224,6 +224,40 @@ final class DurationDialContractTests: XCTestCase {
         XCTAssertEqual(DurationDialContract.index(for: 0.76, count: 3), 2)
         XCTAssertEqual(DurationDialContract.index(for: 2, count: 3), 2)
     }
+
+    func testArcFractionIncludesBothEndpointHitCorridors() throws {
+        let diameter: CGFloat = 216
+        let radius = diameter / 2 - 16
+        let center = CGPoint(x: diameter / 2, y: diameter / 2)
+        let endpoint = { (degrees: CGFloat) -> CGPoint in
+            let radians = degrees * .pi / 180
+            return CGPoint(
+                x: center.x + radius * cos(radians),
+                y: center.y + radius * sin(radians)
+            )
+        }
+
+        XCTAssertEqual(
+            try XCTUnwrap(DurationDialContract.arcFraction(at: endpoint(135), diameter: diameter, clampGap: false)),
+            0,
+            accuracy: 0.000_001
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(DurationDialContract.arcFraction(at: endpoint(45), diameter: diameter, clampGap: false)),
+            1,
+            accuracy: 0.000_001
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(DurationDialContract.arcFraction(at: endpoint(134.9), diameter: diameter, clampGap: false)),
+            0,
+            accuracy: 0.000_001
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(DurationDialContract.arcFraction(at: endpoint(45.1), diameter: diameter, clampGap: false)),
+            1,
+            accuracy: 0.000_001
+        )
+    }
 }
 
 @MainActor

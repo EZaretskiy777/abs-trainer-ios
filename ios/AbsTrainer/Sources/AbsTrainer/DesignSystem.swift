@@ -360,6 +360,9 @@ struct SessionConfirmationModal: View {
 
 enum DurationDialContract {
     static let allowedValues = Array(5...15)
+    private static let arcStartDegrees: CGFloat = 135
+    private static let arcSweepDegrees: CGFloat = 270
+    private static let endpointToleranceDegrees: CGFloat = 0.5
 
     static func nearestIndex(to value: Int, in values: [Int] = allowedValues) -> Int {
         values.indices.min { lhs, rhs in
@@ -379,6 +382,24 @@ enum DurationDialContract {
         guard count > 1 else { return 0 }
         let scaled = max(0, min(1, fraction)) * CGFloat(count - 1)
         return Int(floor(scaled + 0.499_999))
+    }
+
+    static func arcFraction(at point: CGPoint, diameter: CGFloat, clampGap: Bool) -> CGFloat? {
+        let center = CGPoint(x: diameter / 2, y: diameter / 2)
+        let dx = point.x - center.x
+        let dy = point.y - center.y
+        let radius = diameter / 2 - 16
+        guard abs(hypot(dx, dy) - radius) <= 24 else { return nil }
+
+        var angle = atan2(dy, dx) * 180 / .pi
+        if angle < 0 { angle += 360 }
+        let distanceFromStart = (angle - arcStartDegrees + 360).truncatingRemainder(dividingBy: 360)
+        if distanceFromStart >= 360 - endpointToleranceDegrees { return 0 }
+        if distanceFromStart <= arcSweepDegrees + endpointToleranceDegrees {
+            return min(1, distanceFromStart / arcSweepDegrees)
+        }
+        guard clampGap else { return nil }
+        return angle < 90 ? 1 : 0
     }
 }
 
@@ -630,29 +651,22 @@ struct TempoDurationDial: View {
         DragGesture(minimumDistance: 0)
             .onChanged { gesture in
                 if !dragStartedInArc {
-                    guard fraction(at: gesture.startLocation, diameter: diameter, clampGap: false) != nil else { return }
+                    guard DurationDialContract.arcFraction(
+                        at: gesture.startLocation,
+                        diameter: diameter,
+                        clampGap: false
+                    ) != nil else { return }
                     dragStartedInArc = true
                     UISelectionFeedbackGenerator().prepare()
                 }
-                guard let fraction = fraction(at: gesture.location, diameter: diameter, clampGap: true) else { return }
+                guard let fraction = DurationDialContract.arcFraction(
+                    at: gesture.location,
+                    diameter: diameter,
+                    clampGap: true
+                ) else { return }
                 select(index: DurationDialContract.index(for: fraction, count: allowedValues.count))
             }
             .onEnded { _ in dragStartedInArc = false }
-    }
-
-    private func fraction(at point: CGPoint, diameter: CGFloat, clampGap: Bool) -> CGFloat? {
-        let center = CGPoint(x: diameter / 2, y: diameter / 2)
-        let dx = point.x - center.x
-        let dy = point.y - center.y
-        let radius = diameter / 2 - 16
-        guard abs(hypot(dx, dy) - radius) <= 24 else { return nil }
-
-        var angle = atan2(dy, dx) * 180 / .pi
-        if angle < 0 { angle += 360 }
-        if angle >= 135 { return min(1, (angle - 135) / 270) }
-        if angle <= 45 { return min(1, (angle + 225) / 270) }
-        guard clampGap else { return nil }
-        return angle < 90 ? 1 : 0
     }
 
     private func fraction(for index: Int) -> Double {
@@ -734,8 +748,10 @@ struct TempoChoiceCell: View {
                         isSelected ? selectedBackground : unselectedForeground.opacity(0.24),
                         lineWidth: isSelected ? 2 : 1
                     )
+                    .allowsHitTesting(false)
             }
             .clipShape(RoundedRectangle(cornerRadius: TempoTokens.Radius.small, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: TempoTokens.Radius.small, style: .continuous))
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)
