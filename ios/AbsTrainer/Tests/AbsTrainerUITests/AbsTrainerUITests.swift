@@ -1113,12 +1113,12 @@ final class AbsTrainerUITests: XCTestCase {
             XCTAssertTrue(activeScroll.waitForExistence(timeout: 2))
             let repetitionCount = app.staticTexts["session.active.repetitionCount"]
             if repetitionCount.waitForExistence(timeout: 0.5) {
-                scrollIntoView(
-                    [repetitionCount],
+                scrollIntoSubstantialView(
+                    repetitionCount,
                     in: app,
                     visibleFrame: activeVisibleFrame,
                     scrollSurface: activeScroll,
-                    scrollDragX: 0.5
+                    scrollDragX: 0.05
                 )
                 assertScrollableContentVisible(repetitionCount.frame, in: activeVisibleFrame)
             } else {
