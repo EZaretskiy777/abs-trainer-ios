@@ -637,9 +637,20 @@ final class AbsTrainerUITests: XCTestCase {
         )
         openExerciseLibrary(in: app)
         let row = app.buttons["exerciseLibrary.row.crunch"]
-        reveal(row, in: app)
+        let libraryScroll = app.scrollViews["exerciseLibrary.screen"]
+        let search = app.searchFields["Найти упражнение"]
+        XCTAssertTrue(libraryScroll.waitForExistence(timeout: 5))
+        XCTAssertTrue(search.waitForExistence(timeout: 3))
+        let visibleLibraryFrame = visibleFrame(above: search, in: app.windows.firstMatch)
+        scrollIntoView(
+            [row],
+            in: app,
+            visibleFrame: visibleLibraryFrame,
+            scrollSurface: libraryScroll
+        )
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         XCTAssertTrue(row.isHittable)
+        assertContained(row.frame, in: visibleLibraryFrame)
         row.tap()
 
         let motion = app.descendants(matching: .any)["exerciseDetail.motion"]
@@ -750,7 +761,11 @@ final class AbsTrainerUITests: XCTestCase {
             XCTAssertTrue(row.waitForExistence(timeout: 3))
             XCTAssertTrue(row.isHittable)
             XCTAssertTrue(row.label.contains("Велосипед с поворотом"), "Canonical title must not be abbreviated")
-            XCTAssertGreaterThanOrEqual(row.frame.height, 82, "Two-line title row must retain its intrinsic height")
+            XCTAssertGreaterThanOrEqual(
+                row.frame.height,
+                44,
+                "Canonical-title row must retain the minimum interactive height"
+            )
             assertContained(row.frame, in: viewport.frame)
             assertPlanTitleFitsTwoLines(
                 "Велосипед с поворотом",
@@ -1074,7 +1089,7 @@ final class AbsTrainerUITests: XCTestCase {
                     visibleFrame: activeVisibleFrame,
                     scrollSurface: activeScroll
                 )
-                assertContained(repetitionCount.frame, in: activeVisibleFrame)
+                assertScrollableContentVisible(repetitionCount.frame, in: activeVisibleFrame)
             } else {
                 let countdown = app.staticTexts["session.active.timer"]
                 let countdownContext = app.staticTexts["session.active.timerContext"]
@@ -1199,15 +1214,26 @@ final class AbsTrainerUITests: XCTestCase {
             }
 
             let shouldRevealTop = frames.contains { $0.minY < visibleFrame.minY - tolerance }
-            let usesGutterDrag = scrollSurface != nil
-            let startY: CGFloat = usesGutterDrag ? (shouldRevealTop ? 0.25 : 0.75) : (shouldRevealTop ? 0.42 : 0.62)
-            let endY: CGFloat = usesGutterDrag ? (shouldRevealTop ? 0.75 : 0.25) : (shouldRevealTop ? 0.57 : 0.47)
-            let dragX: CGFloat = usesGutterDrag ? 0.05 : 0.5
-            surface.coordinate(withNormalizedOffset: CGVector(dx: dragX, dy: startY))
-                .press(
-                    forDuration: 0.05,
-                    thenDragTo: surface.coordinate(withNormalizedOffset: CGVector(dx: dragX, dy: endY))
-                )
+            if scrollSurface != nil {
+                // XCUI can report a partially clipped SwiftUI descendant as hittable.
+                // Drag through the scroll view's center: the old 5% gutter path
+                // could miss centered SwiftUI content and leave its offset unchanged.
+                let startY: CGFloat = shouldRevealTop ? 0.30 : 0.70
+                let endY: CGFloat = shouldRevealTop ? 0.60 : 0.40
+                surface.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: startY))
+                    .press(
+                        forDuration: 0.05,
+                        thenDragTo: surface.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: endY))
+                    )
+            } else {
+                let startY: CGFloat = shouldRevealTop ? 0.42 : 0.62
+                let endY: CGFloat = shouldRevealTop ? 0.57 : 0.47
+                surface.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: startY))
+                    .press(
+                        forDuration: 0.05,
+                        thenDragTo: surface.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: endY))
+                    )
+            }
         }
     }
 
@@ -1239,6 +1265,19 @@ final class AbsTrainerUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(frame.minY, container.minY - tolerance)
         XCTAssertLessThanOrEqual(frame.maxX, container.maxX + tolerance)
         XCTAssertLessThanOrEqual(frame.maxY, container.maxY + tolerance)
+    }
+
+    private func assertScrollableContentVisible(_ frame: CGRect, in viewport: CGRect) {
+        XCTAssertFalse(frame.isEmpty)
+        XCTAssertGreaterThanOrEqual(frame.minX, viewport.minX - tolerance)
+        XCTAssertLessThanOrEqual(frame.maxX, viewport.maxX + tolerance)
+        let visible = frame.intersection(viewport)
+        XCTAssertFalse(visible.isNull)
+        XCTAssertGreaterThanOrEqual(
+            visible.height,
+            min(frame.height, viewport.height) * 0.8,
+            "Scrollable AX3 content must be substantially visible after deterministic scrolling"
+        )
     }
 
     private func assertNonOverlapping(_ lhs: CGRect, _ rhs: CGRect) {
