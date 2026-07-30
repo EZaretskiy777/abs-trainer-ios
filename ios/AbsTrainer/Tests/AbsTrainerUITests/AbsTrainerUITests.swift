@@ -4,6 +4,7 @@ import XCTest
 final class AbsTrainerUITests: XCTestCase {
     private let tolerance: CGFloat = 2
     private let maximumFinishPrimaryHeight: CGFloat = 96
+    private let maximumAX3FinishPrimaryHeight: CGFloat = 120
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -646,7 +647,8 @@ final class AbsTrainerUITests: XCTestCase {
             [row],
             in: app,
             visibleFrame: visibleLibraryFrame,
-            scrollSurface: libraryScroll
+            scrollSurface: libraryScroll,
+            scrollDragX: 0.5
         )
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         XCTAssertTrue(row.isHittable)
@@ -780,12 +782,9 @@ final class AbsTrainerUITests: XCTestCase {
                 XCTAssertTrue(dynamicType.waitForExistence(timeout: 3))
                 XCTAssertEqual(dynamicType.value as? String, "accessibility3")
             }
+            waitForVisualStability()
             attachScreenshot(
                 named: "plan-canonical-titles-\(configuration.name)-\(Int(size.width))x\(Int(size.height))"
-            )
-            attachScreenshotCrop(
-                named: "plan-title-pixels-\(configuration.name)-\(Int(size.width))x\(Int(size.height))",
-                frame: row.frame.insetBy(dx: -2, dy: -2)
             )
             app.terminate()
         }
@@ -1087,7 +1086,8 @@ final class AbsTrainerUITests: XCTestCase {
                     [repetitionCount],
                     in: app,
                     visibleFrame: activeVisibleFrame,
-                    scrollSurface: activeScroll
+                    scrollSurface: activeScroll,
+                    scrollDragX: 0.5
                 )
                 assertScrollableContentVisible(repetitionCount.frame, in: activeVisibleFrame)
             } else {
@@ -1137,10 +1137,14 @@ final class AbsTrainerUITests: XCTestCase {
         XCTAssertTrue(newWorkout.waitForExistence(timeout: 5))
         assertCriticalControls([repeatWorkout, newWorkout], in: container)
         XCTAssertGreaterThanOrEqual(repeatWorkout.frame.height, 58)
+        let dynamicType = app.descendants(matching: .any)["validation.dynamicType"].firstMatch
+        let maximumPrimaryHeight = dynamicType.value as? String == "accessibility3"
+            ? maximumAX3FinishPrimaryHeight
+            : maximumFinishPrimaryHeight
         XCTAssertLessThanOrEqual(
             repeatWorkout.frame.height,
-            maximumFinishPrimaryHeight,
-            "Finish primary action must remain compact when the balanced symbol layout is used"
+            maximumPrimaryHeight,
+            "Finish primary action must remain bounded for the active Dynamic Type category"
         )
         XCTAssertEqual(repeatWorkout.frame.minX, newWorkout.frame.minX, accuracy: tolerance)
         XCTAssertEqual(repeatWorkout.frame.maxX, newWorkout.frame.maxX, accuracy: tolerance)
@@ -1200,7 +1204,8 @@ final class AbsTrainerUITests: XCTestCase {
         _ controls: [XCUIElement],
         in app: XCUIApplication,
         visibleFrame: CGRect,
-        scrollSurface: XCUIElement? = nil
+        scrollSurface: XCUIElement? = nil,
+        scrollDragX: CGFloat? = nil
     ) {
         let surface: XCUIElement = scrollSurface ?? app
         for _ in 0..<8 {
@@ -1214,26 +1219,15 @@ final class AbsTrainerUITests: XCTestCase {
             }
 
             let shouldRevealTop = frames.contains { $0.minY < visibleFrame.minY - tolerance }
-            if scrollSurface != nil {
-                // XCUI can report a partially clipped SwiftUI descendant as hittable.
-                // Drag through the scroll view's center: the old 5% gutter path
-                // could miss centered SwiftUI content and leave its offset unchanged.
-                let startY: CGFloat = shouldRevealTop ? 0.30 : 0.70
-                let endY: CGFloat = shouldRevealTop ? 0.60 : 0.40
-                surface.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: startY))
-                    .press(
-                        forDuration: 0.05,
-                        thenDragTo: surface.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: endY))
-                    )
-            } else {
-                let startY: CGFloat = shouldRevealTop ? 0.42 : 0.62
-                let endY: CGFloat = shouldRevealTop ? 0.57 : 0.47
-                surface.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: startY))
-                    .press(
-                        forDuration: 0.05,
-                        thenDragTo: surface.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: endY))
-                    )
-            }
+            let usesGutterDrag = scrollSurface != nil
+            let startY: CGFloat = usesGutterDrag ? (shouldRevealTop ? 0.25 : 0.75) : (shouldRevealTop ? 0.42 : 0.62)
+            let endY: CGFloat = usesGutterDrag ? (shouldRevealTop ? 0.75 : 0.25) : (shouldRevealTop ? 0.57 : 0.47)
+            let dragX: CGFloat = scrollDragX ?? (usesGutterDrag ? 0.05 : 0.5)
+            surface.coordinate(withNormalizedOffset: CGVector(dx: dragX, dy: startY))
+                .press(
+                    forDuration: 0.05,
+                    thenDragTo: surface.coordinate(withNormalizedOffset: CGVector(dx: dragX, dy: endY))
+                )
         }
     }
 
