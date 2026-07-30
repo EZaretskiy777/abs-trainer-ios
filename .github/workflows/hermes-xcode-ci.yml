@@ -20,7 +20,7 @@ jobs:
   xcode-validation:
     name: Xcode build and test
     runs-on: macos-26
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       PROJECT: ios/AbsTrainer/AbsTrainer.xcodeproj
       SCHEME: AbsTrainer
