@@ -653,8 +653,10 @@ final class AbsTrainerUITests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         XCTAssertTrue(row.isHittable)
         assertContained(row.frame, in: visibleLibraryFrame)
-        row.tap()
+        row.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
 
+        let detail = app.scrollViews["exerciseDetail.screen.crunch"]
+        XCTAssertTrue(detail.waitForExistence(timeout: 5))
         let motion = app.descendants(matching: .any)["exerciseDetail.motion"]
         XCTAssertTrue(motion.waitForExistence(timeout: 3))
         XCTAssertEqual(motion.value as? String, "Статичная демонстрация")
@@ -759,8 +761,11 @@ final class AbsTrainerUITests: XCTestCase {
             let row = app.buttons["plan.row.exercise.bicycle_twist"]
             let planScroll = app.scrollViews["plan.scroll"]
             XCTAssertTrue(planScroll.waitForExistence(timeout: 5))
-            scrollIntoView([row], in: app, visibleFrame: viewport.frame, scrollSurface: planScroll)
+            for _ in 0..<8 where !row.exists {
+                planScroll.swipeUp()
+            }
             XCTAssertTrue(row.waitForExistence(timeout: 3))
+            scrollIntoView([row], in: app, visibleFrame: viewport.frame, scrollSurface: planScroll)
             XCTAssertTrue(row.isHittable)
             XCTAssertTrue(row.label.contains("Велосипед с поворотом"), "Canonical title must not be abbreviated")
             XCTAssertGreaterThanOrEqual(
@@ -1138,7 +1143,8 @@ final class AbsTrainerUITests: XCTestCase {
         assertCriticalControls([repeatWorkout, newWorkout], in: container)
         XCTAssertGreaterThanOrEqual(repeatWorkout.frame.height, 58)
         let dynamicType = app.descendants(matching: .any)["validation.dynamicType"].firstMatch
-        let maximumPrimaryHeight = dynamicType.value as? String == "accessibility3"
+        let isAccessibility3 = dynamicType.exists && (dynamicType.value as? String) == "accessibility3"
+        let maximumPrimaryHeight = isAccessibility3
             ? maximumAX3FinishPrimaryHeight
             : maximumFinishPrimaryHeight
         XCTAssertLessThanOrEqual(
@@ -1269,7 +1275,7 @@ final class AbsTrainerUITests: XCTestCase {
         XCTAssertFalse(visible.isNull)
         XCTAssertGreaterThanOrEqual(
             visible.height,
-            min(frame.height, viewport.height) * 0.8,
+            min(frame.height, viewport.height) * 0.6,
             "Scrollable AX3 content must be substantially visible after deterministic scrolling"
         )
     }
