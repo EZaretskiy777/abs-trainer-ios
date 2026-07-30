@@ -768,8 +768,8 @@ final class AbsTrainerUITests: XCTestCase {
                 planScroll.swipeUp()
             }
             XCTAssertTrue(row.waitForExistence(timeout: 3))
-            scrollIntoView(
-                [row],
+            scrollIntoSubstantialView(
+                row,
                 in: app,
                 visibleFrame: viewport.frame,
                 scrollSurface: planScroll,
@@ -1042,15 +1042,22 @@ final class AbsTrainerUITests: XCTestCase {
         let setupScroll = app.scrollViews["setup.scroll"]
         let setupVisibleFrame = visibleFrame(above: setup, in: container)
         XCTAssertTrue(setupScroll.waitForExistence(timeout: 3))
-        scrollIntoView(
-            [durationDial, decrement, increment],
+        scrollIntoSubstantialView(
+            durationDial,
             in: app,
             visibleFrame: setupVisibleFrame,
             scrollSurface: setupScroll,
-            scrollDragX: 0.5
+            scrollDragX: 0.05
         )
         XCTAssertTrue(durationDial.exists)
         assertScrollableContentVisible(durationDial.frame, in: setupVisibleFrame)
+        scrollIntoView(
+            [decrement, increment],
+            in: app,
+            visibleFrame: setupVisibleFrame,
+            scrollSurface: setupScroll,
+            scrollDragX: 0.05
+        )
         assertCriticalControls([decrement, increment], in: setupVisibleFrame)
         assertNonOverlapping(decrement.frame, increment.frame)
         attachScreenshot(named: "\(screenshotPrefix)-01-setup")
@@ -1244,6 +1251,35 @@ final class AbsTrainerUITests: XCTestCase {
             }
 
             let shouldRevealTop = frames.contains { $0.minY < visibleFrame.minY - tolerance }
+            let usesGutterDrag = scrollSurface != nil
+            let startY: CGFloat = usesGutterDrag ? (shouldRevealTop ? 0.25 : 0.75) : (shouldRevealTop ? 0.42 : 0.62)
+            let endY: CGFloat = usesGutterDrag ? (shouldRevealTop ? 0.75 : 0.25) : (shouldRevealTop ? 0.57 : 0.47)
+            let dragX: CGFloat = scrollDragX ?? (usesGutterDrag ? 0.05 : 0.5)
+            surface.coordinate(withNormalizedOffset: CGVector(dx: dragX, dy: startY))
+                .press(
+                    forDuration: 0.05,
+                    thenDragTo: surface.coordinate(withNormalizedOffset: CGVector(dx: dragX, dy: endY))
+                )
+        }
+    }
+
+    private func scrollIntoSubstantialView(
+        _ control: XCUIElement,
+        in app: XCUIApplication,
+        visibleFrame: CGRect,
+        scrollSurface: XCUIElement? = nil,
+        scrollDragX: CGFloat? = nil
+    ) {
+        let surface: XCUIElement = scrollSurface ?? app
+        for _ in 0..<8 {
+            let frame = control.frame
+            let visible = frame.intersection(visibleFrame)
+            if !visible.isNull,
+               visible.height >= min(frame.height, visibleFrame.height) * 0.35 {
+                return
+            }
+
+            let shouldRevealTop = frame.minY < visibleFrame.minY - tolerance
             let usesGutterDrag = scrollSurface != nil
             let startY: CGFloat = usesGutterDrag ? (shouldRevealTop ? 0.25 : 0.75) : (shouldRevealTop ? 0.42 : 0.62)
             let endY: CGFloat = usesGutterDrag ? (shouldRevealTop ? 0.75 : 0.25) : (shouldRevealTop ? 0.57 : 0.47)
