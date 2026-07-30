@@ -204,12 +204,12 @@ struct ContentView: View {
     private var zonePicker: some View {
         VStack(alignment: .leading, spacing: TempoTokens.Space.md) {
             sectionHeader(title: "Куда нагрузка?", value: "Можно несколько")
-            Grid(horizontalSpacing: TempoTokens.Space.xs, verticalSpacing: TempoTokens.Space.xs) {
-                GridRow {
+            VStack(spacing: TempoTokens.Space.xs) {
+                HStack(spacing: TempoTokens.Space.xs) {
                     zoneChoice(.upper)
                     zoneChoice(.lower)
                 }
-                GridRow {
+                HStack(spacing: TempoTokens.Space.xs) {
                     zoneChoice(.obliques)
                     zoneChoice(.full)
                 }
@@ -231,6 +231,7 @@ struct ContentView: View {
             accessibilityIdentifier: "setup.zone.\(zone.rawValue)",
             action: { toggle(zone) }
         )
+        .frame(maxWidth: .infinity)
     }
 
     private var intensityPicker: some View {

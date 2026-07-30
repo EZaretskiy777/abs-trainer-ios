@@ -719,10 +719,7 @@ final class AbsTrainerUITests: XCTestCase {
     private func tapAndWaitForValue(_ element: XCUIElement, value: String) {
         element.tap()
         let selected = NSPredicate(format: "value == %@", value)
-        if !wait(for: selected, object: element, timeout: 1) {
-            element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-            XCTAssertTrue(wait(for: selected, object: element, timeout: 2))
-        }
+        XCTAssertTrue(wait(for: selected, object: element, timeout: 3))
     }
 
     @MainActor
