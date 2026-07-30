@@ -204,23 +204,33 @@ struct ContentView: View {
     private var zonePicker: some View {
         VStack(alignment: .leading, spacing: TempoTokens.Space.md) {
             sectionHeader(title: "Куда нагрузка?", value: "Можно несколько")
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: TempoTokens.Space.xs) {
-                ForEach(AbsZone.allCases) { zone in
-                    TempoChoiceCell(
-                        title: zone.setupTitle,
-                        isSelected: selectedZones.contains(zone),
-                        selectedColor: zone == .full ? TempoTokens.ColorToken.ultramarine : TempoTokens.ColorToken.carbon,
-                        isEnabled: !isGenerating,
-                        usesDarkCanvas: true,
-                        accessibilityIdentifier: "setup.zone.\(zone.rawValue)",
-                        action: { toggle(zone) }
-                    )
+            Grid(horizontalSpacing: TempoTokens.Space.xs, verticalSpacing: TempoTokens.Space.xs) {
+                GridRow {
+                    zoneChoice(.upper)
+                    zoneChoice(.lower)
+                }
+                GridRow {
+                    zoneChoice(.obliques)
+                    zoneChoice(.full)
                 }
             }
+            .frame(maxWidth: .infinity)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Зона нагрузки")
         .accessibilityHint("Можно выбрать несколько зон. Весь пресс отменяет выбор отдельных зон.")
+    }
+
+    private func zoneChoice(_ zone: AbsZone) -> some View {
+        TempoChoiceCell(
+            title: zone.setupTitle,
+            isSelected: selectedZones.contains(zone),
+            selectedColor: zone == .full ? TempoTokens.ColorToken.ultramarine : TempoTokens.ColorToken.carbon,
+            isEnabled: !isGenerating,
+            usesDarkCanvas: true,
+            accessibilityIdentifier: "setup.zone.\(zone.rawValue)",
+            action: { toggle(zone) }
+        )
     }
 
     private var intensityPicker: some View {
