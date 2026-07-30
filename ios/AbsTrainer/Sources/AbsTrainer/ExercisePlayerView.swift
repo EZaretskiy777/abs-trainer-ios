@@ -220,8 +220,8 @@ struct ExercisePlayerView: View {
                 .padding(.horizontal, TempoTokens.Space.outer)
                 .padding(.vertical, TempoTokens.Space.xl)
                 .padding(.bottom, 80)
+                .contentShape(Rectangle())
             }
-            .contentShape(Rectangle())
             .accessibilityIdentifier("session.active.scroll")
         }
         .foregroundStyle(.white)
