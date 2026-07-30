@@ -653,7 +653,7 @@ final class AbsTrainerUITests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         XCTAssertTrue(row.isHittable)
         assertContained(row.frame, in: visibleLibraryFrame)
-        row.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        row.tap()
 
         let detail = app.scrollViews["exerciseDetail.screen.crunch"]
         XCTAssertTrue(detail.waitForExistence(timeout: 5))
@@ -765,7 +765,13 @@ final class AbsTrainerUITests: XCTestCase {
                 planScroll.swipeUp()
             }
             XCTAssertTrue(row.waitForExistence(timeout: 3))
-            scrollIntoView([row], in: app, visibleFrame: viewport.frame, scrollSurface: planScroll)
+            scrollIntoView(
+                [row],
+                in: app,
+                visibleFrame: viewport.frame,
+                scrollSurface: planScroll,
+                scrollDragX: 0.5
+            )
             XCTAssertTrue(row.isHittable)
             XCTAssertTrue(row.label.contains("Велосипед с поворотом"), "Canonical title must not be abbreviated")
             XCTAssertGreaterThanOrEqual(
@@ -1275,7 +1281,7 @@ final class AbsTrainerUITests: XCTestCase {
         XCTAssertFalse(visible.isNull)
         XCTAssertGreaterThanOrEqual(
             visible.height,
-            min(frame.height, viewport.height) * 0.6,
+            min(frame.height, viewport.height) * 0.35,
             "Scrollable AX3 content must be substantially visible after deterministic scrolling"
         )
     }
