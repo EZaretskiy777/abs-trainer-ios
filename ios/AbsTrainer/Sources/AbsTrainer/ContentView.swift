@@ -16,6 +16,8 @@ struct ContentView: View {
     @State private var path: [Route] = []
     @State private var isGenerating = false
     @State private var generationError: String?
+    @State private var generationTask: Task<Void, Never>?
+    @State private var generationRequestID: UUID?
     @State private var wasExerciseLibraryOpen = false
     @StateObject private var audioPreferences = WorkoutAudioPreferences()
     @ScaledMetric(relativeTo: .largeTitle) private var displayTitleSize = 42
@@ -36,12 +38,22 @@ struct ContentView: View {
             .accessibilityIdentifier("setup.scroll")
             .background(TempoTokens.ColorToken.auditCanvas.ignoresSafeArea())
             .safeAreaInset(edge: .bottom) {
-                TempoPrimaryButton(
-                    title: "Собрать тренировку",
-                    isLoading: isGenerating,
-                    style: .auditPrimary,
-                    action: generatePlan
-                )
+                VStack(spacing: TempoTokens.Space.xxs) {
+                    TempoPrimaryButton(
+                        title: "Собрать тренировку",
+                        isLoading: isGenerating,
+                        style: .auditPrimary,
+                        action: generatePlan
+                    )
+                    if isGenerating {
+                        Button("Отменить сборку", action: cancelGeneration)
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity, minHeight: TempoTokens.Size.minimumTap)
+                            .foregroundStyle(TempoTokens.ColorToken.auditText)
+                            .accessibilityHint("Параметры тренировки останутся выбранными")
+                            .accessibilityIdentifier("setup.generation.cancel")
+                    }
+                }
                 .padding(.horizontal, TempoTokens.Space.outer)
                 .padding(.vertical, TempoTokens.Space.sm)
                 .background(TempoTokens.ColorToken.auditCanvas)
@@ -155,6 +167,7 @@ struct ContentView: View {
                 .font(.system(size: displayTitleSize, weight: .bold))
                 .foregroundStyle(TempoTokens.ColorToken.auditText)
                 .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("setup.title")
                 .accessibilityFocused($setupTitleFocused)
             Text("Выберите длительность и нагрузку. План будет готов без регистрации.")
                 .font(.body)
@@ -377,21 +390,61 @@ struct ContentView: View {
             selectedZones: selectedZones,
             intensity: selectedIntensity
         ).normalized
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 350_000_000)
-            let generatedPlan = generator.generate(
+        let requestID = UUID()
+        generationRequestID = requestID
+        generationTask = Task { @MainActor in
+            do {
+                try await Task.sleep(nanoseconds: generationDelayNanoseconds)
+            } catch {
+                return
+            }
+            guard generationRequestID == requestID, !Task.isCancelled else { return }
+            let generatedPlan = activeGenerator.generate(
                 targetDurationMin: setup.targetDurationMin,
                 selectedZones: setup.canonicalZones,
                 intensity: setup.intensity
             )
             isGenerating = false
+            generationTask = nil
+            generationRequestID = nil
             guard !generatedPlan.items.isEmpty else {
-                generationError = "Не удалось собрать тренировку. Попробуйте другой вариант."
+                generationError = "Не удалось собрать тренировку. Параметры сохранены — попробуйте ещё раз."
                 return
             }
             plan = generatedPlan
             path.append(.plan)
         }
+    }
+
+    private func cancelGeneration() {
+        generationRequestID = nil
+        generationTask?.cancel()
+        generationTask = nil
+        isGenerating = false
+        generationError = "Сборка отменена. Параметры сохранены."
+    }
+
+    private var activeGenerator: WorkoutGenerator {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-ValidationMode"), arguments.contains("-PlanGenerationFailure") {
+            return WorkoutGenerator(catalog: [])
+        }
+        #endif
+        return generator
+    }
+
+    private var generationDelayNanoseconds: UInt64 {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-ValidationMode"),
+           let index = arguments.firstIndex(of: "-PlanGenerationDelayMilliseconds"),
+           arguments.indices.contains(index + 1),
+           let milliseconds = UInt64(arguments[index + 1]) {
+            return milliseconds * 1_000_000
+        }
+        #endif
+        return 350_000_000
     }
 }
 
@@ -402,5 +455,5 @@ struct ContentView: View {
 
 #Preview("Настройка · compact") {
     ContentView()
-        .previewLayout(.fixed(width: 320, height: 700))
+        .previewLayout(.fixed(width: 320, height: 568))
 }

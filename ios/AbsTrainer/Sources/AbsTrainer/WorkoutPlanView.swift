@@ -10,6 +10,14 @@ struct WorkoutPlanView: View {
     @ScaledMetric(relativeTo: .largeTitle) private var planTitleSize = 36
     @AccessibilityFocusState private var planTitleFocused: Bool
 
+    private var validationMode: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-ValidationMode")
+        #else
+        false
+        #endif
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TempoTokens.Space.xl) {
@@ -29,6 +37,7 @@ struct WorkoutPlanView: View {
             .padding(.top, TempoTokens.Space.xs)
             .padding(.bottom, 88)
         }
+        .accessibilityIdentifier("plan.scroll")
         .background(TempoTokens.ColorToken.auditCanvas.ignoresSafeArea())
         .safeAreaInset(edge: .bottom) {
             TempoPrimaryButton(title: "Начать тренировку", style: .auditPrimary, action: onStart)
@@ -149,7 +158,7 @@ struct WorkoutPlanView: View {
 
     private func workoutRow(_ item: WorkoutItem) -> some View {
         Button { onOpenExercise(item.exercise.id) } label: {
-            HStack(alignment: .firstTextBaseline, spacing: TempoTokens.Space.md) {
+            HStack(alignment: .top, spacing: TempoTokens.Space.md) {
                 Text(String(format: "%02d", item.order))
                     .font(.subheadline.weight(.semibold).monospacedDigit())
                     .foregroundStyle(TempoTokens.ColorToken.auditPrimary)
@@ -159,16 +168,23 @@ struct WorkoutPlanView: View {
                         .font(.body.weight(.semibold))
                         .foregroundStyle(TempoTokens.ColorToken.auditText)
                         .lineLimit(2)
+                        .minimumScaleFactor(0.68)
+                        .allowsTightening(true)
+                        .layoutPriority(1)
                         .fixedSize(horizontal: false, vertical: true)
-                    Text(item.exercise.zones.first?.title ?? "Весь пресс")
-                        .font(.caption)
-                        .foregroundStyle(TempoTokens.ColorToken.auditMuted)
+                        .accessibilityIdentifier("plan.row.title.\(item.exercise.id)")
+                    ViewThatFits(in: .horizontal) {
+                        HStack(alignment: .firstTextBaseline, spacing: TempoTokens.Space.xs) {
+                            workoutZone(item)
+                            Spacer(minLength: TempoTokens.Space.xs)
+                            workoutPrescription(item)
+                        }
+                        VStack(alignment: .leading, spacing: TempoTokens.Space.xxs) {
+                            workoutZone(item)
+                            workoutPrescription(item)
+                        }
+                    }
                 }
-                Spacer(minLength: TempoTokens.Space.xs)
-                Text(prescriptionTitle(item.prescription))
-                    .font(.subheadline.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(TempoTokens.ColorToken.auditPrimary)
-                    .fixedSize()
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(TempoTokens.ColorToken.auditMuted)
@@ -179,10 +195,23 @@ struct WorkoutPlanView: View {
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.plain)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: validationMode ? .contain : .combine)
         .accessibilityLabel(workoutRowAccessibilityLabel(item))
         .accessibilityHint("Открывает технику и упрощённый вариант")
         .accessibilityIdentifier("plan.row.exercise.\(item.exercise.id)")
+    }
+
+    private func workoutZone(_ item: WorkoutItem) -> some View {
+        Text(item.exercise.zones.first?.title ?? "Весь пресс")
+            .font(.caption)
+            .foregroundStyle(TempoTokens.ColorToken.auditMuted)
+    }
+
+    private func workoutPrescription(_ item: WorkoutItem) -> some View {
+        Text(prescriptionTitle(item.prescription))
+            .font(.subheadline.weight(.semibold).monospacedDigit())
+            .foregroundStyle(TempoTokens.ColorToken.auditPrimary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private func restRow(after item: WorkoutItem) -> some View {

@@ -22,6 +22,7 @@ struct ExercisePlayerView: View {
     @State private var confirmationTransitioning = false
     @State private var lastAnnouncedSecond: Int?
     @State private var validationFocusProbe = "none"
+    @State private var mediaUnavailable = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorSchemeContrast) private var accessibilityContrast
     @Environment(\.scenePhase) private var scenePhase
@@ -174,8 +175,20 @@ struct ExercisePlayerView: View {
                         }
                     }
 
-                    ExerciseMotionAperture(exercise: store.currentItem.exercise, isPaused: store.isPaused)
+                    ExerciseMotionAperture(
+                        exercise: store.currentItem.exercise,
+                        isPaused: store.isPaused,
+                        onMediaAvailabilityChange: { mediaUnavailable = $0 }
+                    )
                         .accessibilityIdentifier("session.active.athleteStage")
+
+                    if mediaUnavailable {
+                        Text("Демонстрация недоступна — таймер и управление тренировкой продолжают работать.")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(inverseSecondaryColor)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("session.active.mediaError")
+                    }
 
                     if validationMode {
                         activeProgressComposition
@@ -208,6 +221,7 @@ struct ExercisePlayerView: View {
                 .padding(.vertical, TempoTokens.Space.xl)
                 .padding(.bottom, 80)
             }
+            .accessibilityIdentifier("session.active.scroll")
         }
         .foregroundStyle(.white)
         .safeAreaInset(edge: .bottom) {

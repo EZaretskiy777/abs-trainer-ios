@@ -161,8 +161,8 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
-    func testCriticalStatesFitCompact320By700And393By852() throws {
-        for size in [CGSize(width: 320, height: 700), CGSize(width: 393, height: 852)] {
+    func testCriticalStatesFitCompact320By568And393By852() throws {
+        for size in [CGSize(width: 320, height: 568), CGSize(width: 393, height: 852)] {
             let app = launchApp(viewport: size)
             let viewport = app.descendants(matching: .any)["validation.viewport"].firstMatch
             XCTAssertTrue(viewport.waitForExistence(timeout: 5))
@@ -195,15 +195,26 @@ final class AbsTrainerUITests: XCTestCase {
 
     @MainActor
     func testAccessibility3PortraitAndLandscapeGeometry() throws {
-        let app = launchApp(
-            viewport: CGSize(width: 393, height: 852),
-            contentSizeCategory: "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge"
-        )
-        let viewport = app.descendants(matching: .any)["validation.viewport"].firstMatch
-        XCTAssertTrue(viewport.waitForExistence(timeout: 5))
-        assertFiveStateGeometry(in: app, container: viewport, screenshotPrefix: "ax3-portrait")
+        for size in [CGSize(width: 393, height: 852), CGSize(width: 320, height: 568)] {
+            let app = launchApp(
+                viewport: size,
+                contentSizeCategory: "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge"
+            )
+            let viewport = app.descendants(matching: .any)["validation.viewport"].firstMatch
+            let dynamicType = app.descendants(matching: .any)["validation.dynamicType"].firstMatch
+            XCTAssertTrue(viewport.waitForExistence(timeout: 5))
+            XCTAssertEqual(viewport.frame.width, size.width, accuracy: tolerance)
+            XCTAssertEqual(viewport.frame.height, size.height, accuracy: tolerance)
+            XCTAssertTrue(dynamicType.waitForExistence(timeout: 3))
+            XCTAssertEqual(dynamicType.value as? String, "accessibility3")
+            assertFiveStateGeometry(
+                in: app,
+                container: viewport,
+                screenshotPrefix: "ax3-portrait-\(Int(size.width))x\(Int(size.height))"
+            )
+            app.terminate()
+        }
 
-        app.terminate()
         XCUIDevice.shared.orientation = .landscapeLeft
         let landscapeApp = launchApp(
             contentSizeCategory: "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge"
@@ -213,6 +224,47 @@ final class AbsTrainerUITests: XCTestCase {
         XCTAssertGreaterThan(window.frame.width, window.frame.height)
         assertFiveStateGeometry(in: landscapeApp, container: window, screenshotPrefix: "ax3-landscape")
         landscapeApp.terminate()
+    }
+
+    @MainActor
+    func testAccessibility3ChangesRenderedSetupPixelsAndReflowsTitle() throws {
+        let size = CGSize(width: 393, height: 852)
+        let defaultApp = launchApp(viewport: size)
+        let defaultTitle = defaultApp.staticTexts["setup.title"]
+        let defaultViewport = defaultApp.descendants(matching: .any)["validation.viewport"].firstMatch
+        XCTAssertTrue(defaultTitle.waitForExistence(timeout: 5))
+        XCTAssertTrue(defaultViewport.waitForExistence(timeout: 3))
+        waitForVisualStability()
+        let defaultFrame = defaultTitle.frame
+        let defaultViewportFrame = defaultViewport.frame
+        let defaultScreenshot = XCUIScreen.main.screenshot()
+        defaultApp.terminate()
+
+        let ax3App = launchApp(
+            viewport: size,
+            contentSizeCategory: "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge"
+        )
+        let ax3Title = ax3App.staticTexts["setup.title"]
+        let dynamicType = ax3App.descendants(matching: .any)["validation.dynamicType"].firstMatch
+        XCTAssertTrue(ax3Title.waitForExistence(timeout: 5))
+        XCTAssertTrue(dynamicType.waitForExistence(timeout: 3))
+        XCTAssertEqual(dynamicType.value as? String, "accessibility3")
+        waitForVisualStability()
+        let ax3Screenshot = XCUIScreen.main.screenshot()
+        let ratio = pixelMismatchRatio(
+            baseline: defaultScreenshot,
+            candidate: ax3Screenshot,
+            crop: defaultViewportFrame.insetBy(dx: 8, dy: 48),
+            channelThreshold: 12
+        )
+        XCTAssertGreaterThan(
+            ax3Title.frame.height,
+            defaultFrame.height,
+            "AX3 must visibly enlarge or reflow the rendered setup title"
+        )
+        XCTAssertGreaterThan(ratio, 0.01, "AX3 rendered pixels must differ from the default category")
+        attach(defaultScreenshot, named: "dynamic-type-default-393x852")
+        attach(ax3Screenshot, named: "dynamic-type-ax3-393x852-ratio-\(String(format: "%.5f", ratio))")
     }
 
     @MainActor
@@ -674,6 +726,162 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
+    func testPlanCanonicalTitlesRemainCompleteAtStandardAndCompactViewports() throws {
+        let configurations: [(name: String, size: CGSize, category: String?)] = [
+            ("default", CGSize(width: 393, height: 852), nil),
+            ("default", CGSize(width: 320, height: 568), nil),
+            ("ax3", CGSize(width: 393, height: 852), "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge"),
+            ("ax3", CGSize(width: 320, height: 568), "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge")
+        ]
+        for configuration in configurations {
+            let size = configuration.size
+            let app = launchApp(viewport: size, contentSizeCategory: configuration.category)
+            let viewport = app.descendants(matching: .any)["validation.viewport"].firstMatch
+            let setup = setupButton(in: app)
+            XCTAssertTrue(viewport.waitForExistence(timeout: 5))
+            XCTAssertTrue(setup.waitForExistence(timeout: 5))
+            setup.tap()
+
+            let row = app.buttons["plan.row.exercise.bicycle_twist"]
+            let title = app.staticTexts["plan.row.title.bicycle_twist"]
+            let planScroll = app.scrollViews["plan.scroll"]
+            XCTAssertTrue(planScroll.waitForExistence(timeout: 5))
+            scrollIntoView([row], in: app, visibleFrame: viewport.frame, scrollSurface: planScroll)
+            XCTAssertTrue(row.waitForExistence(timeout: 3))
+            XCTAssertTrue(title.waitForExistence(timeout: 3))
+            XCTAssertTrue(row.isHittable)
+            XCTAssertTrue(row.label.contains("Велосипед с поворотом"), "Canonical title must not be abbreviated")
+            XCTAssertEqual(title.label, "Велосипед с поворотом")
+            XCTAssertGreaterThanOrEqual(row.frame.height, 82, "Two-line title row must retain its intrinsic height")
+            assertContained(row.frame, in: viewport.frame)
+            assertContained(title.frame, in: row.frame)
+            XCTAssertGreaterThan(title.frame.width, 0)
+            XCTAssertGreaterThan(title.frame.height, 0)
+            assertPlanTitleFitsTwoLines(
+                "Велосипед с поворотом",
+                renderedWidth: title.frame.width,
+                contentSizeCategory: configuration.category == nil
+                    ? .large
+                    : .accessibilityExtraExtraExtraLarge,
+                minimumScaleFactor: 0.68
+            )
+            if configuration.category != nil {
+                let dynamicType = app.descendants(matching: .any)["validation.dynamicType"].firstMatch
+                XCTAssertTrue(dynamicType.waitForExistence(timeout: 3))
+                XCTAssertEqual(dynamicType.value as? String, "accessibility3")
+            }
+            attachScreenshot(
+                named: "plan-canonical-titles-\(configuration.name)-\(Int(size.width))x\(Int(size.height))"
+            )
+            attachScreenshotCrop(
+                named: "plan-title-pixels-\(configuration.name)-\(Int(size.width))x\(Int(size.height))",
+                frame: row.frame.insetBy(dx: -2, dy: -2)
+            )
+            app.terminate()
+        }
+    }
+
+    @MainActor
+    func testSetupGenerationCancellationAndFailureRetainParameters() throws {
+        let size = CGSize(width: 393, height: 852)
+        let app = launchApp(
+            viewport: size,
+            extraArguments: ["-PlanGenerationDelayMilliseconds", "3000"]
+        )
+        let setup = setupButton(in: app)
+        let setupScroll = app.scrollViews["setup.scroll"]
+        let increment = app.buttons["setup.durationDial.increment"]
+        let upper = app.buttons["setup.zone.upper"]
+        XCTAssertTrue(setup.waitForExistence(timeout: 5))
+        XCTAssertTrue(setupScroll.waitForExistence(timeout: 3))
+        let setupVisibleFrame = visibleFrame(above: setup, in: app.windows.firstMatch)
+        scrollIntoView([increment], in: app, visibleFrame: setupVisibleFrame, scrollSurface: setupScroll)
+        increment.tap()
+        XCTAssertEqual(app.descendants(matching: .any)["setup.durationDial"].value as? String, "11 минут")
+        scrollIntoView([upper], in: app, visibleFrame: setupVisibleFrame, scrollSurface: setupScroll)
+        tapAndWaitForValue(upper, value: "Выбрано")
+
+        setup.tap()
+        let cancel = app.buttons["setup.generation.cancel"]
+        XCTAssertTrue(cancel.waitForExistence(timeout: 2))
+        XCTAssertTrue(cancel.isHittable)
+        attachScreenshot(named: "setup-generation-loading-cancellable-393x852")
+        cancel.tap()
+        XCTAssertTrue(setupButton(in: app).waitForExistence(timeout: 3))
+        XCTAssertEqual(app.descendants(matching: .any)["setup.durationDial"].value as? String, "11 минут")
+        XCTAssertEqual(upper.value as? String, "Выбрано")
+        let cancelled = app.staticTexts["setup.generationError"]
+        scrollIntoView([cancelled], in: app, visibleFrame: setupVisibleFrame, scrollSurface: setupScroll)
+        XCTAssertTrue(cancelled.waitForExistence(timeout: 3))
+        XCTAssertTrue(cancelled.label.contains("Параметры сохранены"))
+        attachScreenshot(named: "setup-generation-cancelled-parameters-retained-393x852")
+        app.terminate()
+
+        let failureApp = launchApp(
+            viewport: size,
+            extraArguments: ["-PlanGenerationFailure"]
+        )
+        let failureSetup = setupButton(in: failureApp)
+        let failureScroll = failureApp.scrollViews["setup.scroll"]
+        let failureIncrement = failureApp.buttons["setup.durationDial.increment"]
+        let failureUpper = failureApp.buttons["setup.zone.upper"]
+        XCTAssertTrue(failureSetup.waitForExistence(timeout: 5))
+        XCTAssertTrue(failureScroll.waitForExistence(timeout: 3))
+        let failureVisibleFrame = visibleFrame(above: failureSetup, in: failureApp.windows.firstMatch)
+        scrollIntoView([failureIncrement], in: failureApp, visibleFrame: failureVisibleFrame, scrollSurface: failureScroll)
+        failureIncrement.tap()
+        scrollIntoView([failureUpper], in: failureApp, visibleFrame: failureVisibleFrame, scrollSurface: failureScroll)
+        tapAndWaitForValue(failureUpper, value: "Выбрано")
+        failureSetup.tap()
+
+        let failure = failureApp.staticTexts["setup.generationError"]
+        XCTAssertTrue(failure.waitForExistence(timeout: 3))
+        scrollIntoView([failure], in: failureApp, visibleFrame: failureVisibleFrame, scrollSurface: failureScroll)
+        XCTAssertTrue(failure.label.contains("Параметры сохранены"))
+        XCTAssertEqual(failureApp.descendants(matching: .any)["setup.durationDial"].value as? String, "11 минут")
+        XCTAssertEqual(failureUpper.value as? String, "Выбрано")
+        XCTAssertTrue(failureSetup.isHittable)
+        attachScreenshot(named: "setup-generation-failure-parameters-retained-393x852")
+    }
+
+    @MainActor
+    func testActiveMediaErrorPreservesSessionControlsAndProgress() throws {
+        let app = launchApp(
+            viewport: CGSize(width: 393, height: 852),
+            extraArguments: ["-ExerciseMediaFailure"]
+        )
+        navigateToSession(in: app)
+
+        let mediaError = app.staticTexts["session.active.mediaError"]
+        let stage = app.descendants(matching: .any)["session.active.athleteStage"].firstMatch
+        let repetitionCount = app.staticTexts["session.active.repetitionCount"]
+        let pause = app.buttons["session.pause"]
+        let skip = app.buttons["session.exercise.skip"]
+        let audio = app.buttons["session.audio.toggle"]
+        let exit = app.buttons["session.exit"]
+        let next = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH 'Далее' OR label == 'Завершить набор'")
+        ).firstMatch
+        XCTAssertTrue(mediaError.waitForExistence(timeout: 5))
+        XCTAssertTrue(stage.exists)
+        XCTAssertEqual(stage.value as? String, "Анимация недоступна")
+        XCTAssertTrue(repetitionCount.exists)
+        assertCriticalControls([pause, skip, audio, exit, next], in: app.windows.firstMatch)
+
+        let activeScroll = app.scrollViews["session.active.scroll"]
+        XCTAssertTrue(activeScroll.waitForExistence(timeout: 3))
+        let visible = visibleFrame(above: pause, in: app.windows.firstMatch)
+        scrollIntoView([mediaError, repetitionCount], in: app, visibleFrame: visible, scrollSurface: activeScroll)
+        assertContained(mediaError.frame, in: visible)
+        assertContained(repetitionCount.frame, in: visible)
+        XCTAssertTrue(pause.isHittable)
+        XCTAssertTrue(next.isHittable)
+        XCTAssertTrue(audio.isHittable)
+        XCTAssertTrue(exit.isHittable)
+        attachScreenshot(named: "active-media-error-controls-preserved-393x852")
+    }
+
+    @MainActor
     private func launchApp(
         viewport: CGSize? = nil,
         contentSizeCategory: String? = nil,
@@ -858,16 +1066,28 @@ final class AbsTrainerUITests: XCTestCase {
             assertCriticalControls([pause, next], in: container)
             assertNonOverlapping(pause.frame, next.frame)
             let activeVisibleFrame = visibleFrame(above: pause, in: container)
+            let activeScroll = app.scrollViews["session.active.scroll"]
+            XCTAssertTrue(activeScroll.waitForExistence(timeout: 2))
             let repetitionCount = app.staticTexts["session.active.repetitionCount"]
             if repetitionCount.waitForExistence(timeout: 0.5) {
-                scrollIntoView([repetitionCount], in: app, visibleFrame: activeVisibleFrame)
+                scrollIntoView(
+                    [repetitionCount],
+                    in: app,
+                    visibleFrame: activeVisibleFrame,
+                    scrollSurface: activeScroll
+                )
                 assertContained(repetitionCount.frame, in: activeVisibleFrame)
             } else {
                 let countdown = app.staticTexts["session.active.timer"]
                 let countdownContext = app.staticTexts["session.active.timerContext"]
                 XCTAssertTrue(countdown.waitForExistence(timeout: 2))
                 XCTAssertTrue(countdownContext.waitForExistence(timeout: 2))
-                scrollIntoView([countdown, countdownContext], in: app, visibleFrame: activeVisibleFrame)
+                scrollIntoView(
+                    [countdown, countdownContext],
+                    in: app,
+                    visibleFrame: activeVisibleFrame,
+                    scrollSurface: activeScroll
+                )
                 assertContained(countdown.frame, in: activeVisibleFrame)
                 assertContained(countdownContext.frame, in: activeVisibleFrame)
                 assertCountdownComposition(countdown.frame, countdownContext.frame)
@@ -1048,6 +1268,51 @@ final class AbsTrainerUITests: XCTestCase {
         add(attachment)
     }
 
+    @MainActor
+    private func attachScreenshotCrop(named name: String, frame: CGRect) {
+        let screenshot = XCUIScreen.main.screenshot()
+        guard let image = UIImage(data: screenshot.pngRepresentation),
+              let crop = croppedCGImage(
+                image,
+                to: frame,
+                coordinateSpace: UIScreen.main.bounds.size
+              ) else {
+            XCTFail("Unable to crop screenshot evidence for \(name)")
+            return
+        }
+        let attachment = XCTAttachment(image: UIImage(cgImage: crop))
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
+    private func assertPlanTitleFitsTwoLines(
+        _ title: String,
+        renderedWidth: CGFloat,
+        contentSizeCategory: UIContentSizeCategory,
+        minimumScaleFactor: CGFloat
+    ) {
+        let traits = UITraitCollection(preferredContentSizeCategory: contentSizeCategory)
+        let preferred = UIFont.preferredFont(forTextStyle: .body, compatibleWith: traits)
+        let minimumFont = UIFont.systemFont(
+            ofSize: preferred.pointSize * minimumScaleFactor,
+            weight: .semibold
+        )
+        let bounds = (title as NSString).boundingRect(
+            with: CGSize(width: renderedWidth, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: [.font: minimumFont],
+            context: nil
+        )
+        XCTAssertLessThanOrEqual(
+            ceil(bounds.height),
+            ceil(minimumFont.lineHeight * 2),
+            "Canonical title cannot fit in two lines even at the declared minimum scale"
+        )
+    }
+
+    @MainActor
     private func pixelMismatchRatio(
         baseline: XCUIScreenshot,
         candidate: XCUIScreenshot,
@@ -1081,16 +1346,25 @@ final class AbsTrainerUITests: XCTestCase {
         return Double(mismatchedPixels) / Double(width * height)
     }
 
-    private func croppedCGImage(_ image: UIImage, to points: CGRect) -> CGImage? {
+    @MainActor
+    private func croppedCGImage(
+        _ image: UIImage,
+        to points: CGRect,
+        coordinateSpace: CGSize = UIScreen.main.bounds.size
+    ) -> CGImage? {
         guard let cgImage = image.cgImage else { return nil }
-        let scaleX = CGFloat(cgImage.width) / image.size.width
-        let scaleY = CGFloat(cgImage.height) / image.size.height
-        let pixels = CGRect(
+        guard coordinateSpace.width > 0, coordinateSpace.height > 0 else { return nil }
+        let scaleX = CGFloat(cgImage.width) / coordinateSpace.width
+        let scaleY = CGFloat(cgImage.height) / coordinateSpace.height
+        let requestedPixels = CGRect(
             x: points.minX * scaleX,
             y: points.minY * scaleY,
             width: points.width * scaleX,
             height: points.height * scaleY
         ).integral
+        let imageBounds = CGRect(x: 0, y: 0, width: cgImage.width, height: cgImage.height)
+        let pixels = requestedPixels.intersection(imageBounds)
+        guard !pixels.isNull, !pixels.isEmpty else { return nil }
         return cgImage.cropping(to: pixels)
     }
 

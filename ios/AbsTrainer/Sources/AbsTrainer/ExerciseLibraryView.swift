@@ -746,6 +746,7 @@ struct ExerciseDetailView: View {
 struct ExerciseMotionAperture: View {
     let exercise: Exercise
     var isPaused = false
+    var onMediaAvailabilityChange: (Bool) -> Void = { _ in }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
@@ -858,7 +859,13 @@ struct ExerciseMotionAperture: View {
 #endif
             startIfNeeded()
         }
-        .onDisappear { playback.tearDown() }
+        .onDisappear {
+            playback.tearDown()
+            onMediaAvailabilityChange(false)
+        }
+        .onChange(of: playback.state) { state in
+            onMediaAvailabilityChange(state == .failed)
+        }
         .onChange(of: scenePhase) { phase in
             if phase == .active {
                 startIfNeeded()
@@ -886,8 +893,10 @@ struct ExerciseMotionAperture: View {
         }
         guard !forceFailure, let url = ExerciseMediaRepository.videoURL(for: exercise) else {
             playback.fail()
+            onMediaAvailabilityChange(true)
             return
         }
+        onMediaAvailabilityChange(false)
         playback.setPlaybackAllowed(true)
         playback.load(url: url)
     }
