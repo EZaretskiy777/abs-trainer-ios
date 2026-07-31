@@ -227,8 +227,8 @@ final class AbsTrainerUITests: XCTestCase {
             in: landscapeApp,
             container: window,
             screenshotPrefix: "ax3-landscape",
-            setupControlScrollDragStartY: 0.55,
-            setupControlScrollDragEndY: 0.45
+            setupControlScrollDragStartY: 0.65,
+            setupControlScrollDragEndY: 0.35
         )
         landscapeApp.terminate()
     }
