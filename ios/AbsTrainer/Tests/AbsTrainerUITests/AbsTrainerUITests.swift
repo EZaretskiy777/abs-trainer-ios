@@ -1132,7 +1132,10 @@ final class AbsTrainerUITests: XCTestCase {
                     [countdown, countdownContext],
                     in: app,
                     visibleFrame: activeVisibleFrame,
-                    scrollSurface: activeScroll
+                    scrollSurface: activeScroll,
+                    scrollDragX: 0.5,
+                    scrollDragStartY: 0.25,
+                    scrollDragEndY: 0.05
                 )
                 assertContained(countdown.frame, in: activeVisibleFrame)
                 assertContained(countdownContext.frame, in: activeVisibleFrame)
@@ -1239,7 +1242,9 @@ final class AbsTrainerUITests: XCTestCase {
         in app: XCUIApplication,
         visibleFrame: CGRect,
         scrollSurface: XCUIElement? = nil,
-        scrollDragX: CGFloat? = nil
+        scrollDragX: CGFloat? = nil,
+        scrollDragStartY: CGFloat? = nil,
+        scrollDragEndY: CGFloat? = nil
     ) {
         let surface: XCUIElement = scrollSurface ?? app
         for _ in 0..<8 {
@@ -1254,8 +1259,10 @@ final class AbsTrainerUITests: XCTestCase {
 
             let shouldRevealTop = frames.contains { $0.minY < visibleFrame.minY - tolerance }
             let usesGutterDrag = scrollSurface != nil
-            let startY: CGFloat = usesGutterDrag ? (shouldRevealTop ? 0.25 : 0.75) : (shouldRevealTop ? 0.42 : 0.62)
-            let endY: CGFloat = usesGutterDrag ? (shouldRevealTop ? 0.75 : 0.25) : (shouldRevealTop ? 0.57 : 0.47)
+            let startY: CGFloat = scrollDragStartY
+                ?? (usesGutterDrag ? (shouldRevealTop ? 0.25 : 0.75) : (shouldRevealTop ? 0.42 : 0.62))
+            let endY: CGFloat = scrollDragEndY
+                ?? (usesGutterDrag ? (shouldRevealTop ? 0.75 : 0.25) : (shouldRevealTop ? 0.57 : 0.47))
             let dragX: CGFloat = scrollDragX ?? (usesGutterDrag ? 0.05 : 0.5)
             surface.coordinate(withNormalizedOffset: CGVector(dx: dragX, dy: startY))
                 .press(
