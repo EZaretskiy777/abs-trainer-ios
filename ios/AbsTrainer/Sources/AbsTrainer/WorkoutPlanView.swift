@@ -137,6 +137,7 @@ struct WorkoutPlanView: View {
                 .foregroundStyle(TempoTokens.ColorToken.auditMuted)
         }
         .fixedSize(horizontal: false, vertical: true)
+        .accessibilityElement(children: .combine)
         .accessibilityIdentifier("plan.audio.summary")
     }
 
