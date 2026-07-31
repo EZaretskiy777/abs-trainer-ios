@@ -1,7 +1,7 @@
 import UIKit
 import XCTest
 
-final class AbsTrainerUITests: XCTestCase {
+class AbsTrainerUITestCase: XCTestCase {
     private let tolerance: CGFloat = 2
     private let maximumFinishPrimaryHeight: CGFloat = 96
     private let maximumAX3FinishPrimaryHeight: CGFloat = 120
@@ -16,7 +16,7 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
-    func testFiveStateFlowCapturesReferenceScreens() throws {
+    func scenarioFiveStateFlowCapturesReferenceScreens() throws {
         let app = launchApp(viewport: CGSize(width: 393, height: 852))
 
         attachScreenshot(named: "01-setup")
@@ -79,7 +79,7 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
-    func testSetupFocusIntensityAndPlanSnapshotContract() throws {
+    func scenarioSetupFocusIntensityAndPlanSnapshotContract() throws {
         let app = launchApp(viewport: CGSize(width: 440, height: 956))
         let full = app.buttons["setup.zone.full"]
         let upper = app.buttons["setup.zone.upper"]
@@ -128,7 +128,7 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
-    func testPauseResumeAccessibilityOrderAndFocusReturn() throws {
+    func scenarioPauseResumeAccessibilityOrderAndFocusReturn() throws {
         let app = launchApp(viewport: CGSize(width: 393, height: 852))
         navigateToSession(in: app)
 
@@ -162,7 +162,7 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
-    func testCriticalStatesFitCompact320By568And393By852() throws {
+    func scenarioCriticalStatesFitCompact320By568And393By852() throws {
         for size in [CGSize(width: 320, height: 568), CGSize(width: 393, height: 852)] {
             let app = launchApp(viewport: size)
             let viewport = app.descendants(matching: .any)["validation.viewport"].firstMatch
@@ -179,7 +179,7 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
-    func testCriticalStatesFitIPhone17ProMaxPortraitEquivalent() throws {
+    func scenarioCriticalStatesFitIPhone17ProMaxPortraitEquivalent() throws {
         let size = CGSize(width: 440, height: 956)
         let app = launchApp(viewport: size)
         let window = app.windows.firstMatch
@@ -195,7 +195,7 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
-    func testAccessibility3PortraitAndLandscapeGeometry() throws {
+    func scenarioAccessibility3PortraitAndLandscapeGeometry() throws {
         for size in [CGSize(width: 393, height: 852), CGSize(width: 320, height: 568)] {
             let app = launchApp(
                 viewport: size,
@@ -235,7 +235,7 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
-    func testAccessibility3ChangesRenderedSetupPixelsAndReflowsTitle() throws {
+    func scenarioAccessibility3ChangesRenderedSetupPixelsAndReflowsTitle() throws {
         let size = CGSize(width: 393, height: 852)
         let defaultApp = launchApp(viewport: size)
         let defaultTitle = defaultApp.staticTexts["setup.title"]
@@ -276,7 +276,7 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
-    func testDeterministicSetupSnapshotWithinPixelThreshold() throws {
+    func scenarioDeterministicSetupSnapshotWithinPixelThreshold() throws {
         let size = CGSize(width: 393, height: 852)
         let app = launchApp(viewport: size)
         XCTAssertTrue(app.buttons["Собрать тренировку"].waitForExistence(timeout: 5))
@@ -303,7 +303,7 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
-    func testDurationDialStepControlsPreserveAllowedValuesAndEndpointStates() throws {
+    func scenarioDurationDialStepControlsPreserveAllowedValuesAndEndpointStates() throws {
         let app = launchApp(viewport: CGSize(width: 393, height: 852))
         let dial = app.descendants(matching: .any)["setup.durationDial"]
         let decrement = app.buttons["setup.durationDial.decrement"]
@@ -327,7 +327,7 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
-    func testDurationDialTapAndDragSnapToAllowedValues() throws {
+    func scenarioDurationDialTapAndDragSnapToAllowedValues() throws {
         let app = launchApp(viewport: CGSize(width: 440, height: 956))
         let dial = app.descendants(matching: .any)["setup.durationDial"]
         let setup = app.buttons["Собрать тренировку"]
@@ -360,7 +360,7 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
-    func testSetupZoneHitTargetsRemainInteractiveAtCompactAndStandardWidths() throws {
+    func scenarioSetupZoneHitTargetsRemainInteractiveAtCompactAndStandardWidths() throws {
         for size in [CGSize(width: 320, height: 568), CGSize(width: 393, height: 852)] {
             let app = launchApp(viewport: size)
             let upper = app.buttons["setup.zone.upper"]
@@ -385,7 +385,7 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
-    func testDurationDialAdjustableIncrementAndDecrementPreserveContract() throws {
+    func scenarioDurationDialAdjustableIncrementAndDecrementPreserveContract() throws {
         let app = launchApp(viewport: CGSize(width: 440, height: 956))
         let dial = app.descendants(matching: .any)["setup.durationDial"]
         let increment = app.buttons["validation.durationDial.adjustable.increment"]
@@ -412,7 +412,7 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
-    func testExitConfirmationUsesSafeDefaultAndRestoresOpenerFocus() throws {
+    func scenarioExitConfirmationUsesSafeDefaultAndRestoresOpenerFocus() throws {
         let app = launchApp(viewport: CGSize(width: 393, height: 852))
         navigateToSession(in: app)
 
@@ -442,7 +442,7 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
-    func testExerciseLibrarySearchFiltersDetailAndSetupState() throws {
+    func scenarioExerciseLibrarySearchFiltersDetailAndSetupState() throws {
         let app = launchApp(viewport: CGSize(width: 393, height: 852))
         let upperSetup = app.buttons["setup.zone.upper"]
         let setup = app.buttons["Собрать тренировку"]
@@ -513,7 +513,7 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
-    func testExerciseDetailActualPlaybackCompletesLoopAndMeasuresStartupAt320By568() throws {
+    func scenarioExerciseDetailActualPlaybackCompletesLoopAndMeasuresStartupAt320By568() throws {
         let size = CGSize(width: 320, height: 568)
         let app = launchApp(viewport: size)
         let viewport = app.descendants(matching: .any)["validation.viewport"].firstMatch
@@ -602,7 +602,7 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
-    func testExerciseLibraryNoResultsResetAndVideoFallback() throws {
+    func scenarioExerciseLibraryNoResultsResetAndVideoFallback() throws {
         let app = launchApp(
             viewport: CGSize(width: 320, height: 700),
             extraArguments: ["-ExerciseMediaFailure", "-ExercisePosterFailure"]
@@ -637,7 +637,7 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
-    func testExerciseDetailReduceMotionAndAX3LandscapeRemainScrollable() throws {
+    func scenarioExerciseDetailReduceMotionAndAX3LandscapeRemainScrollable() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
         let app = launchApp(
             contentSizeCategory: "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
@@ -682,7 +682,7 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
-    func testAudioSettingsSummaryAndSessionMuteControl() throws {
+    func scenarioAudioSettingsSummaryAndSessionMuteControl() throws {
         let app = launchApp(viewport: CGSize(width: 393, height: 852))
         let setupScroll = app.scrollViews["setup.scroll"]
         let setup = app.buttons["Собрать тренировку"]
@@ -715,7 +715,7 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
-    func testMobbinAuditSetupPlanAndActiveContracts() throws {
+    func scenarioMobbinAuditSetupPlanAndActiveContracts() throws {
         let app = launchApp(viewport: CGSize(width: 393, height: 852))
 
         let preset = app.descendants(matching: .any)["setup.presetSummary"]
@@ -752,7 +752,7 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
-    func testPlanCanonicalTitlesRemainCompleteAtStandardAndCompactViewports() throws {
+    func scenarioPlanCanonicalTitlesRemainCompleteAtStandardAndCompactViewports() throws {
         let configurations: [(name: String, size: CGSize, category: String?)] = [
             ("default", CGSize(width: 393, height: 852), nil),
             ("default", CGSize(width: 320, height: 568), nil),
@@ -812,7 +812,7 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
-    func testSetupGenerationCancellationAndFailureRetainParameters() throws {
+    func scenarioSetupGenerationCancellationAndFailureRetainParameters() throws {
         let size = CGSize(width: 393, height: 852)
         let app = launchApp(
             viewport: size,
@@ -875,7 +875,7 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
-    func testActiveMediaErrorPreservesSessionControlsAndProgress() throws {
+    func scenarioActiveMediaErrorPreservesSessionControlsAndProgress() throws {
         let app = launchApp(
             viewport: CGSize(width: 393, height: 852),
             extraArguments: ["-ExerciseMediaFailure"]
@@ -1559,5 +1559,119 @@ final class AbsTrainerUITests: XCTestCase {
         context.interpolationQuality = .medium
         context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
         return bytes
+    }
+}
+
+final class AbsTrainerSlowGeometryUITests: AbsTrainerUITestCase {
+    @MainActor
+    func testAccessibility3PortraitAndLandscapeGeometry() throws {
+        try scenarioAccessibility3PortraitAndLandscapeGeometry()
+    }
+}
+
+final class AbsTrainerUITests: AbsTrainerUITestCase {
+    @MainActor
+    func testFiveStateFlowCapturesReferenceScreens() throws {
+        try scenarioFiveStateFlowCapturesReferenceScreens()
+    }
+
+    @MainActor
+    func testSetupFocusIntensityAndPlanSnapshotContract() throws {
+        try scenarioSetupFocusIntensityAndPlanSnapshotContract()
+    }
+
+    @MainActor
+    func testPauseResumeAccessibilityOrderAndFocusReturn() throws {
+        try scenarioPauseResumeAccessibilityOrderAndFocusReturn()
+    }
+
+    @MainActor
+    func testCriticalStatesFitCompact320By568And393By852() throws {
+        try scenarioCriticalStatesFitCompact320By568And393By852()
+    }
+
+    @MainActor
+    func testCriticalStatesFitIPhone17ProMaxPortraitEquivalent() throws {
+        try scenarioCriticalStatesFitIPhone17ProMaxPortraitEquivalent()
+    }
+
+    @MainActor
+    func testAccessibility3ChangesRenderedSetupPixelsAndReflowsTitle() throws {
+        try scenarioAccessibility3ChangesRenderedSetupPixelsAndReflowsTitle()
+    }
+
+    @MainActor
+    func testDeterministicSetupSnapshotWithinPixelThreshold() throws {
+        try scenarioDeterministicSetupSnapshotWithinPixelThreshold()
+    }
+
+    @MainActor
+    func testDurationDialStepControlsPreserveAllowedValuesAndEndpointStates() throws {
+        try scenarioDurationDialStepControlsPreserveAllowedValuesAndEndpointStates()
+    }
+
+    @MainActor
+    func testDurationDialTapAndDragSnapToAllowedValues() throws {
+        try scenarioDurationDialTapAndDragSnapToAllowedValues()
+    }
+
+    @MainActor
+    func testSetupZoneHitTargetsRemainInteractiveAtCompactAndStandardWidths() throws {
+        try scenarioSetupZoneHitTargetsRemainInteractiveAtCompactAndStandardWidths()
+    }
+
+    @MainActor
+    func testDurationDialAdjustableIncrementAndDecrementPreserveContract() throws {
+        try scenarioDurationDialAdjustableIncrementAndDecrementPreserveContract()
+    }
+
+    @MainActor
+    func testExitConfirmationUsesSafeDefaultAndRestoresOpenerFocus() throws {
+        try scenarioExitConfirmationUsesSafeDefaultAndRestoresOpenerFocus()
+    }
+
+    @MainActor
+    func testExerciseLibrarySearchFiltersDetailAndSetupState() throws {
+        try scenarioExerciseLibrarySearchFiltersDetailAndSetupState()
+    }
+
+    @MainActor
+    func testExerciseDetailActualPlaybackCompletesLoopAndMeasuresStartupAt320By568() throws {
+        try scenarioExerciseDetailActualPlaybackCompletesLoopAndMeasuresStartupAt320By568()
+    }
+
+    @MainActor
+    func testExerciseLibraryNoResultsResetAndVideoFallback() throws {
+        try scenarioExerciseLibraryNoResultsResetAndVideoFallback()
+    }
+
+    @MainActor
+    func testExerciseDetailReduceMotionAndAX3LandscapeRemainScrollable() throws {
+        try scenarioExerciseDetailReduceMotionAndAX3LandscapeRemainScrollable()
+    }
+
+    @MainActor
+    func testAudioSettingsSummaryAndSessionMuteControl() throws {
+        try scenarioAudioSettingsSummaryAndSessionMuteControl()
+    }
+
+    @MainActor
+    func testMobbinAuditSetupPlanAndActiveContracts() throws {
+        try scenarioMobbinAuditSetupPlanAndActiveContracts()
+    }
+
+    @MainActor
+    func testPlanCanonicalTitlesRemainCompleteAtStandardAndCompactViewports() throws {
+        try scenarioPlanCanonicalTitlesRemainCompleteAtStandardAndCompactViewports()
+    }
+
+    @MainActor
+    func testSetupGenerationCancellationAndFailureRetainParameters() throws {
+        try scenarioSetupGenerationCancellationAndFailureRetainParameters()
+    }
+
+    @MainActor
+    func testActiveMediaErrorPreservesSessionControlsAndProgress() throws {
+        try scenarioActiveMediaErrorPreservesSessionControlsAndProgress()
     }
 }
