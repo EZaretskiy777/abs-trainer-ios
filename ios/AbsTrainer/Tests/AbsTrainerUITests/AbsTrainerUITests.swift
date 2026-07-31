@@ -1267,12 +1267,23 @@ final class AbsTrainerUITests: XCTestCase {
                 return
             }
 
-            let shouldRevealTop = frames.contains { $0.minY < visibleFrame.minY - tolerance }
+            let topOverflow = max(0, visibleFrame.minY - (frames.map(\.minY).min() ?? visibleFrame.minY))
+            let bottomOverflow = max(0, (frames.map(\.maxY).max() ?? visibleFrame.maxY) - visibleFrame.maxY)
+            let shouldRevealTop = topOverflow > bottomOverflow
             let usesGutterDrag = scrollSurface != nil
+            let usesAdaptiveSurfaceDrag = usesGutterDrag
+                && scrollDragStartY == nil
+                && scrollDragEndY == nil
+            let surfaceHeight = max(surface.frame.height, 1)
+            let dragSpan = min(0.5, max(0.08, max(topOverflow, bottomOverflow) / surfaceHeight))
             let startY: CGFloat = scrollDragStartY
-                ?? (usesGutterDrag ? (shouldRevealTop ? 0.25 : 0.75) : (shouldRevealTop ? 0.42 : 0.62))
+                ?? (usesAdaptiveSurfaceDrag
+                    ? (shouldRevealTop ? 0.5 - dragSpan / 2 : 0.5 + dragSpan / 2)
+                    : (usesGutterDrag ? (shouldRevealTop ? 0.25 : 0.75) : (shouldRevealTop ? 0.42 : 0.62)))
             let endY: CGFloat = scrollDragEndY
-                ?? (usesGutterDrag ? (shouldRevealTop ? 0.75 : 0.25) : (shouldRevealTop ? 0.57 : 0.47))
+                ?? (usesAdaptiveSurfaceDrag
+                    ? (shouldRevealTop ? 0.5 + dragSpan / 2 : 0.5 - dragSpan / 2)
+                    : (usesGutterDrag ? (shouldRevealTop ? 0.75 : 0.25) : (shouldRevealTop ? 0.57 : 0.47)))
             let dragX: CGFloat = scrollDragX ?? (usesGutterDrag ? 0.05 : 0.5)
             surface.coordinate(withNormalizedOffset: CGVector(dx: dragX, dy: startY))
                 .press(
