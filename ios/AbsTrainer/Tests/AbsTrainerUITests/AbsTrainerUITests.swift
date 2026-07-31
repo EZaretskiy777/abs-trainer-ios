@@ -223,7 +223,13 @@ final class AbsTrainerUITests: XCTestCase {
         let window = landscapeApp.windows.firstMatch
         XCTAssertTrue(window.waitForExistence(timeout: 5))
         XCTAssertGreaterThan(window.frame.width, window.frame.height)
-        assertFiveStateGeometry(in: landscapeApp, container: window, screenshotPrefix: "ax3-landscape")
+        assertFiveStateGeometry(
+            in: landscapeApp,
+            container: window,
+            screenshotPrefix: "ax3-landscape",
+            setupControlScrollDragStartY: 0.55,
+            setupControlScrollDragEndY: 0.45
+        )
         landscapeApp.terminate()
     }
 
@@ -1031,7 +1037,9 @@ final class AbsTrainerUITests: XCTestCase {
     private func assertFiveStateGeometry(
         in app: XCUIApplication,
         container: XCUIElement,
-        screenshotPrefix: String
+        screenshotPrefix: String,
+        setupControlScrollDragStartY: CGFloat? = nil,
+        setupControlScrollDragEndY: CGFloat? = nil
     ) {
         let setup = setupButton(in: app)
         XCTAssertTrue(setup.waitForExistence(timeout: 5))
@@ -1056,7 +1064,9 @@ final class AbsTrainerUITests: XCTestCase {
             in: app,
             visibleFrame: setupVisibleFrame,
             scrollSurface: setupScroll,
-            scrollDragX: 0.05
+            scrollDragX: 0.05,
+            scrollDragStartY: setupControlScrollDragStartY,
+            scrollDragEndY: setupControlScrollDragEndY
         )
         assertCriticalControls([decrement, increment], in: setupVisibleFrame)
         assertNonOverlapping(decrement.frame, increment.frame)
@@ -1267,23 +1277,12 @@ final class AbsTrainerUITests: XCTestCase {
                 return
             }
 
-            let topOverflow = max(0, visibleFrame.minY - (frames.map(\.minY).min() ?? visibleFrame.minY))
-            let bottomOverflow = max(0, (frames.map(\.maxY).max() ?? visibleFrame.maxY) - visibleFrame.maxY)
-            let shouldRevealTop = topOverflow > bottomOverflow
+            let shouldRevealTop = frames.contains { $0.minY < visibleFrame.minY - tolerance }
             let usesGutterDrag = scrollSurface != nil
-            let usesAdaptiveSurfaceDrag = usesGutterDrag
-                && scrollDragStartY == nil
-                && scrollDragEndY == nil
-            let surfaceHeight = max(surface.frame.height, 1)
-            let dragSpan = min(0.5, max(0.08, max(topOverflow, bottomOverflow) / surfaceHeight))
             let startY: CGFloat = scrollDragStartY
-                ?? (usesAdaptiveSurfaceDrag
-                    ? (shouldRevealTop ? 0.5 - dragSpan / 2 : 0.5 + dragSpan / 2)
-                    : (usesGutterDrag ? (shouldRevealTop ? 0.25 : 0.75) : (shouldRevealTop ? 0.42 : 0.62)))
+                ?? (usesGutterDrag ? (shouldRevealTop ? 0.25 : 0.75) : (shouldRevealTop ? 0.42 : 0.62))
             let endY: CGFloat = scrollDragEndY
-                ?? (usesAdaptiveSurfaceDrag
-                    ? (shouldRevealTop ? 0.5 + dragSpan / 2 : 0.5 - dragSpan / 2)
-                    : (usesGutterDrag ? (shouldRevealTop ? 0.75 : 0.25) : (shouldRevealTop ? 0.57 : 0.47)))
+                ?? (usesGutterDrag ? (shouldRevealTop ? 0.75 : 0.25) : (shouldRevealTop ? 0.57 : 0.47))
             let dragX: CGFloat = scrollDragX ?? (usesGutterDrag ? 0.05 : 0.5)
             surface.coordinate(withNormalizedOffset: CGVector(dx: dragX, dy: startY))
                 .press(
