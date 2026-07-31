@@ -404,7 +404,7 @@ struct ExercisePlayerView: View {
         Text(prescriptionDisplay(item.prescription))
             .font(.headline.monospacedDigit())
             .foregroundStyle(TempoTokens.ColorToken.carbon)
-            .fixedSize()
+            .fixedSize(horizontal: false, vertical: true)
             .accessibilityIdentifier("session.rest.nextDuration")
     }
 
