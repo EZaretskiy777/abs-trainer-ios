@@ -1259,11 +1259,11 @@ final class AbsTrainerUITests: XCTestCase {
         let surface: XCUIElement = scrollSurface ?? app
         for _ in 0..<8 {
             let frames = controls.map(\.frame)
-            if controls.allSatisfy({ $0.isHittable }),
-               frames.allSatisfy({ frame in
+            if frames.allSatisfy({ frame in
                    frame.minY >= visibleFrame.minY - tolerance
                        && frame.maxY <= visibleFrame.maxY + tolerance
-               }) {
+               }),
+               controls.allSatisfy({ $0.isHittable }) {
                 return
             }
 
@@ -1302,9 +1302,9 @@ final class AbsTrainerUITests: XCTestCase {
         for _ in 0..<8 {
             let frame = control.frame
             let visible = frame.intersection(visibleFrame)
-            if control.isHittable,
-               !visible.isNull,
-               visible.height >= min(frame.height, visibleFrame.height) * 0.35 {
+            if !visible.isNull,
+               visible.height >= min(frame.height, visibleFrame.height) * 0.35,
+               control.isHittable {
                 return
             }
 
