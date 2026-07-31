@@ -228,7 +228,8 @@ final class AbsTrainerUITests: XCTestCase {
             container: window,
             screenshotPrefix: "ax3-landscape",
             setupControlScrollDragStartY: 0.65,
-            setupControlScrollDragEndY: 0.35
+            setupControlScrollDragEndY: 0.35,
+            setupControlScrollDragVelocity: .slow
         )
         landscapeApp.terminate()
     }
@@ -1039,7 +1040,8 @@ final class AbsTrainerUITests: XCTestCase {
         container: XCUIElement,
         screenshotPrefix: String,
         setupControlScrollDragStartY: CGFloat? = nil,
-        setupControlScrollDragEndY: CGFloat? = nil
+        setupControlScrollDragEndY: CGFloat? = nil,
+        setupControlScrollDragVelocity: XCUIGestureVelocity? = nil
     ) {
         let setup = setupButton(in: app)
         XCTAssertTrue(setup.waitForExistence(timeout: 5))
@@ -1068,7 +1070,8 @@ final class AbsTrainerUITests: XCTestCase {
             scrollDragStartY: setupControlScrollDragStartY,
             scrollDragEndY: setupControlScrollDragEndY,
             reverseExplicitDragWhenRevealingTop: setupControlScrollDragStartY != nil
-                && setupControlScrollDragEndY != nil
+                && setupControlScrollDragEndY != nil,
+            scrollDragVelocity: setupControlScrollDragVelocity
         )
         assertCriticalControls([decrement, increment], in: setupVisibleFrame)
         assertNonOverlapping(decrement.frame, increment.frame)
@@ -1267,7 +1270,8 @@ final class AbsTrainerUITests: XCTestCase {
         scrollDragX: CGFloat? = nil,
         scrollDragStartY: CGFloat? = nil,
         scrollDragEndY: CGFloat? = nil,
-        reverseExplicitDragWhenRevealingTop: Bool = false
+        reverseExplicitDragWhenRevealingTop: Bool = false,
+        scrollDragVelocity: XCUIGestureVelocity? = nil
     ) {
         let surface: XCUIElement = scrollSurface ?? app
         for _ in 0..<8 {
@@ -1292,11 +1296,18 @@ final class AbsTrainerUITests: XCTestCase {
             let startY: CGFloat = (reversesExplicitDrag ? scrollDragEndY : scrollDragStartY) ?? defaultStartY
             let endY: CGFloat = (reversesExplicitDrag ? scrollDragStartY : scrollDragEndY) ?? defaultEndY
             let dragX: CGFloat = scrollDragX ?? (usesGutterDrag ? 0.05 : 0.5)
-            surface.coordinate(withNormalizedOffset: CGVector(dx: dragX, dy: startY))
-                .press(
+            let startCoordinate = surface.coordinate(withNormalizedOffset: CGVector(dx: dragX, dy: startY))
+            let endCoordinate = surface.coordinate(withNormalizedOffset: CGVector(dx: dragX, dy: endY))
+            if let scrollDragVelocity {
+                startCoordinate.press(
                     forDuration: 0.05,
-                    thenDragTo: surface.coordinate(withNormalizedOffset: CGVector(dx: dragX, dy: endY))
+                    thenDragTo: endCoordinate,
+                    withVelocity: scrollDragVelocity,
+                    thenHoldForDuration: 0
                 )
+            } else {
+                startCoordinate.press(forDuration: 0.05, thenDragTo: endCoordinate)
+            }
             if controls.map(\.frame) == frames {
                 if shouldRevealTop {
                     surface.swipeDown()
