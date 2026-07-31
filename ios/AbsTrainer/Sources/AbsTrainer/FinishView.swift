@@ -89,6 +89,7 @@ struct FinishView: View {
                     style: .auditPrimary,
                     action: onRepeat
                 )
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                 .accessibilityIdentifier("finish.repeat")
                 Button(action: onNewWorkout) {
                     Text("Настроить новую")
