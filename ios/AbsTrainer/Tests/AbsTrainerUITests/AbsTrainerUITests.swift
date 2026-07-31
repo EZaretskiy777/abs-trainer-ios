@@ -987,12 +987,6 @@ final class AbsTrainerUITests: XCTestCase {
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }
 
-    private func waitForExistence(ofAny elements: [XCUIElement], timeout: TimeInterval) -> Bool {
-        let predicate = NSPredicate { _, _ in
-            elements.contains { $0.exists }
-        }
-        return wait(for: predicate, object: NSObject(), timeout: timeout)
-    }
 
     private func playbackMetric(_ key: String, in evidence: String) throws -> Int {
         let fields = Dictionary(
@@ -1097,12 +1091,7 @@ final class AbsTrainerUITests: XCTestCase {
         var capturedRest = false
         for _ in 0..<100 {
             let restTitle = app.staticTexts["session.rest.nextTitle"]
-            let pause = app.buttons["session.pause"]
-            XCTAssertTrue(
-                waitForExistence(ofAny: [restTitle, pause], timeout: 2),
-                "Session must settle into an active or rest state"
-            )
-            if restTitle.exists {
+            if restTitle.waitForExistence(timeout: 1) {
                 let skipRest = app.buttons["Пропустить отдых"]
                 XCTAssertTrue(skipRest.waitForExistence(timeout: 2))
                 let skipRestFrame = assertCriticalControls([skipRest], in: container)[0]
@@ -1127,7 +1116,8 @@ final class AbsTrainerUITests: XCTestCase {
                 continue
             }
 
-            XCTAssertTrue(pause.exists)
+            let pause = app.buttons["session.pause"]
+            XCTAssertTrue(pause.waitForExistence(timeout: 2))
             let next = app.buttons.matching(
                 NSPredicate(
                     format: "label BEGINSWITH 'Далее' OR label == 'Завершить' OR label == 'Завершить набор' OR label == 'Подтвердить набор'"
