@@ -738,14 +738,15 @@ final class AbsTrainerUITests: XCTestCase {
             XCTAssertTrue(setup.waitForExistence(timeout: 5))
             XCTAssertTrue(setupScroll.waitForExistence(timeout: 3))
             let visible = visibleFrame(above: setup, in: app.windows.firstMatch)
-            scrollIntoView(trackChoices, in: app, visibleFrame: visible, scrollSurface: setupScroll)
             for choice in trackChoices {
+                scrollIntoView([choice], in: app, visibleFrame: visible, scrollSurface: setupScroll)
                 XCTAssertTrue(choice.exists)
                 XCTAssertTrue(choice.isHittable)
                 XCTAssertGreaterThanOrEqual(choice.frame.height, 44)
                 assertContained(choice.frame, in: visible)
             }
 
+            scrollIntoView([trackChoices[2]], in: app, visibleFrame: visible, scrollSurface: setupScroll)
             tapAndWaitForValue(trackChoices[2], value: "Выбрано")
             setup.tap()
             let summary = app.descendants(matching: .any)["plan.audio.summary"]
@@ -1034,6 +1035,9 @@ final class AbsTrainerUITests: XCTestCase {
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments += ["-ValidationMode", "YES", "-AppleInterfaceStyle", "Dark"]
+        if !extraArguments.contains("-ResetAudioPreferences") {
+            app.launchArguments.append("-ResetAudioPreferences")
+        }
         app.launchArguments += extraArguments
         if let viewport {
             app.launchArguments += [
