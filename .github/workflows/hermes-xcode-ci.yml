@@ -111,6 +111,8 @@ jobs:
             -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}" \
             -derivedDataPath "$DERIVED_DATA" \
             -resultBundlePath "$RESULT_BUNDLE" \
+            -parallel-testing-enabled YES \
+            -maximum-parallel-testing-workers 2 \
             CODE_SIGNING_ALLOWED=NO \
             | tee artifacts/test.log
 
@@ -144,6 +146,7 @@ jobs:
             -derivedDataPath "$DERIVED_DATA" \
             -resultBundlePath "$evidence_result" \
             -only-testing:AbsTrainerUITests/AbsTrainerUITests/testExerciseDetailActualPlaybackCompletesLoopAndMeasuresStartupAt320By568 \
+            -parallel-testing-enabled NO \
             CODE_SIGNING_ALLOWED=NO \
             | tee artifacts/playback-evidence-test.log
           test_status=${PIPESTATUS[0]}
