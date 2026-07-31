@@ -20,6 +20,30 @@ final class WorkoutAudioPreferencesTests: XCTestCase {
         super.tearDown()
     }
 
+    func testCanonicalMusicRegistryContainsOnlyApprovedTracksAndHashes() {
+        XCTAssertEqual(
+            WorkoutMusicRegistry.canonicalTracks.map(\.id),
+            [.pulseGrid, .forwardArc, .groundedOrbit]
+        )
+        XCTAssertEqual(
+            WorkoutMusicRegistry.canonicalTracks.map(\.resourceName),
+            [
+                "workout_music_pulse_grid_v3",
+                "workout_music_forward_arc_v4",
+                "workout_music_grounded_orbit_v3"
+            ]
+        )
+        XCTAssertEqual(
+            WorkoutMusicRegistry.canonicalTracks.map(\.sha256),
+            [
+                "75ce7234b1b1a826dbdb8384eaae8c79a7bf760cea5e27790e26e5134823bb19",
+                "1023ffe6be67874714cd13e8c51577d4734e0b192215510bdbbacde762ff20cf",
+                "60d8937a9c32b66d419546f1f339397c00c2e9f0ea39269c5710e9b697e42467"
+            ]
+        )
+        XCTAssertEqual(Set(WorkoutMusicRegistry.canonicalTracks.map(\.title)).count, 3)
+    }
+
     func testDefaultsAndPersistentValuesFollowAudioContract() {
         let preferences = WorkoutAudioPreferences(store: defaults)
         XCTAssertFalse(preferences.musicEnabled)
