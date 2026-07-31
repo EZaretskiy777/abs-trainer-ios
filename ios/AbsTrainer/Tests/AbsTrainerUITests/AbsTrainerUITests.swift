@@ -1066,7 +1066,9 @@ final class AbsTrainerUITests: XCTestCase {
             scrollSurface: setupScroll,
             scrollDragX: 0.05,
             scrollDragStartY: setupControlScrollDragStartY,
-            scrollDragEndY: setupControlScrollDragEndY
+            scrollDragEndY: setupControlScrollDragEndY,
+            reverseExplicitDragWhenRevealingTop: setupControlScrollDragStartY != nil
+                && setupControlScrollDragEndY != nil
         )
         assertCriticalControls([decrement, increment], in: setupVisibleFrame)
         assertNonOverlapping(decrement.frame, increment.frame)
@@ -1264,7 +1266,8 @@ final class AbsTrainerUITests: XCTestCase {
         scrollSurface: XCUIElement? = nil,
         scrollDragX: CGFloat? = nil,
         scrollDragStartY: CGFloat? = nil,
-        scrollDragEndY: CGFloat? = nil
+        scrollDragEndY: CGFloat? = nil,
+        reverseExplicitDragWhenRevealingTop: Bool = false
     ) {
         let surface: XCUIElement = scrollSurface ?? app
         for _ in 0..<8 {
@@ -1279,10 +1282,15 @@ final class AbsTrainerUITests: XCTestCase {
 
             let shouldRevealTop = frames.contains { $0.minY < visibleFrame.minY - tolerance }
             let usesGutterDrag = scrollSurface != nil
-            let startY: CGFloat = scrollDragStartY
-                ?? (usesGutterDrag ? (shouldRevealTop ? 0.25 : 0.75) : (shouldRevealTop ? 0.42 : 0.62))
-            let endY: CGFloat = scrollDragEndY
-                ?? (usesGutterDrag ? (shouldRevealTop ? 0.75 : 0.25) : (shouldRevealTop ? 0.57 : 0.47))
+            let defaultStartY: CGFloat = usesGutterDrag
+                ? (shouldRevealTop ? 0.25 : 0.75)
+                : (shouldRevealTop ? 0.42 : 0.62)
+            let defaultEndY: CGFloat = usesGutterDrag
+                ? (shouldRevealTop ? 0.75 : 0.25)
+                : (shouldRevealTop ? 0.57 : 0.47)
+            let reversesExplicitDrag = reverseExplicitDragWhenRevealingTop && shouldRevealTop
+            let startY: CGFloat = (reversesExplicitDrag ? scrollDragEndY : scrollDragStartY) ?? defaultStartY
+            let endY: CGFloat = (reversesExplicitDrag ? scrollDragStartY : scrollDragEndY) ?? defaultEndY
             let dragX: CGFloat = scrollDragX ?? (usesGutterDrag ? 0.05 : 0.5)
             surface.coordinate(withNormalizedOffset: CGVector(dx: dragX, dy: startY))
                 .press(
