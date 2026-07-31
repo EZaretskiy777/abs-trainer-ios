@@ -1205,7 +1205,9 @@ final class AbsTrainerUITests: XCTestCase {
                 in: app,
                 visibleFrame: finishVisibleFrame,
                 scrollSurface: finishScroll,
-                scrollDragX: 0.5
+                scrollDragX: 0.5,
+                scrollDragStartY: 0.25,
+                scrollDragEndY: 0.05
             )
             XCTAssertTrue(element.isHittable, "Required Finish content must be visible and reachable")
             XCTAssertFalse(element.frame.isEmpty, "Required Finish content must have a non-empty frame")
