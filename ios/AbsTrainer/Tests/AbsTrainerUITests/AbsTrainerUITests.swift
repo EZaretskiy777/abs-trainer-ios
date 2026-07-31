@@ -1188,6 +1188,8 @@ final class AbsTrainerUITests: XCTestCase {
         XCTAssertEqual(repeatWorkout.frame.midX, newWorkout.frame.midX, accuracy: tolerance)
         assertNonOverlapping(repeatWorkout.frame, newWorkout.frame)
 
+        let finishScroll = app.scrollViews.firstMatch
+        XCTAssertTrue(finishScroll.waitForExistence(timeout: 2))
         let finishVisibleFrame = visibleFrame(above: repeatWorkout, in: container)
         let finishHierarchy = [
             app.descendants(matching: .any)["finish.eyebrow"],
@@ -1198,7 +1200,13 @@ final class AbsTrainerUITests: XCTestCase {
         ]
         for element in finishHierarchy {
             XCTAssertTrue(element.waitForExistence(timeout: 2), "Required Finish content must exist")
-            scrollIntoView([element], in: app, visibleFrame: finishVisibleFrame)
+            scrollIntoView(
+                [element],
+                in: app,
+                visibleFrame: finishVisibleFrame,
+                scrollSurface: finishScroll,
+                scrollDragX: 0.5
+            )
             XCTAssertTrue(element.isHittable, "Required Finish content must be visible and reachable")
             XCTAssertFalse(element.frame.isEmpty, "Required Finish content must have a non-empty frame")
             XCTAssertGreaterThan(element.frame.intersection(finishVisibleFrame).height, 0)
