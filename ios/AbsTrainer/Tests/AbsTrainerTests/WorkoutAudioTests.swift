@@ -49,15 +49,145 @@ final class WorkoutAudioPreferencesTests: XCTestCase {
         XCTAssertFalse(preferences.musicEnabled)
         XCTAssertEqual(preferences.musicVolume, 0.50, accuracy: 0.001)
         XCTAssertTrue(preferences.voiceCoachEnabled)
+        XCTAssertEqual(preferences.musicSelection, .pulseGrid)
+        XCTAssertEqual(preferences.currentMusicTrack, .pulseGrid)
 
         preferences.musicEnabled = true
         preferences.musicVolume = 0.75
         preferences.voiceCoachEnabled = false
+        preferences.musicSelection = .forwardArc
 
         let restored = WorkoutAudioPreferences(store: defaults)
         XCTAssertTrue(restored.musicEnabled)
         XCTAssertEqual(restored.musicVolume, 0.75, accuracy: 0.001)
         XCTAssertFalse(restored.voiceCoachEnabled)
+        XCTAssertEqual(restored.musicSelection, .forwardArc)
+        XCTAssertEqual(restored.currentMusicTrack, .forwardArc)
+    }
+
+    func testLegacyPulseGridStateMigratesWithoutChangingExistingAudioValues() {
+        defaults.set(true, forKey: WorkoutAudioPreferences.Keys.musicEnabled)
+        defaults.set(0.65, forKey: WorkoutAudioPreferences.Keys.musicVolume)
+
+        let preferences = WorkoutAudioPreferences(store: defaults)
+
+        XCTAssertTrue(preferences.musicEnabled)
+        XCTAssertEqual(preferences.musicVolume, 0.65, accuracy: 0.001)
+        XCTAssertEqual(preferences.musicSelection, .pulseGrid)
+        XCTAssertEqual(defaults.string(forKey: WorkoutAudioPreferences.Keys.musicSelection), "pulseGrid")
+    }
+
+    func testInvalidPersistedSelectionFallsBackToLegacyPulseGrid() {
+        defaults.set("missing-track", forKey: WorkoutAudioPreferences.Keys.musicSelection)
+
+        let preferences = WorkoutAudioPreferences(store: defaults)
+
+        XCTAssertEqual(preferences.musicSelection, .pulseGrid)
+        XCTAssertEqual(preferences.currentMusicTrack, .pulseGrid)
+    }
+
+    func testAutoSelectionRotatesDeterministicallyAcrossWorkoutsAndPersistsCursor() {
+        let preferences = WorkoutAudioPreferences(store: defaults)
+        preferences.musicSelection = .auto
+
+        XCTAssertEqual(preferences.prepareMusicForNextWorkout(), .pulseGrid)
+        XCTAssertEqual(preferences.prepareMusicForNextWorkout(), .forwardArc)
+        XCTAssertEqual(preferences.prepareMusicForNextWorkout(), .groundedOrbit)
+        XCTAssertEqual(preferences.prepareMusicForNextWorkout(), .pulseGrid)
+
+        let restored = WorkoutAudioPreferences(store: defaults)
+        XCTAssertEqual(restored.musicSelection, .auto)
+        XCTAssertEqual(restored.prepareMusicForNextWorkout(), .forwardArc)
+    }
+
+    func testManualSelectionIsStableAndDoesNotAdvanceAutoCursor() {
+        let preferences = WorkoutAudioPreferences(store: defaults)
+        preferences.musicSelection = .auto
+        XCTAssertEqual(preferences.prepareMusicForNextWorkout(), .pulseGrid)
+
+        preferences.musicSelection = .groundedOrbit
+        XCTAssertEqual(preferences.prepareMusicForNextWorkout(), .groundedOrbit)
+        XCTAssertEqual(preferences.prepareMusicForNextWorkout(), .groundedOrbit)
+
+        preferences.musicSelection = .auto
+        XCTAssertEqual(preferences.prepareMusicForNextWorkout(), .forwardArc)
+    }
+
+    func testAutoRotationContinuesAfterActuallyPlayedFallbackWithoutImmediateRepeat() {
+        let preferences = WorkoutAudioPreferences(store: defaults)
+        preferences.musicSelection = .auto
+        XCTAssertEqual(preferences.prepareMusicForNextWorkout(), .pulseGrid)
+
+        preferences.recordPlayedMusicTrack(.forwardArc)
+
+        XCTAssertEqual(preferences.currentMusicTrack, .forwardArc)
+        XCTAssertEqual(preferences.prepareMusicForNextWorkout(), .groundedOrbit)
+    }
+
+    func testRestoredAutoPreviewMatchesTrackPreparedForNextWorkout() {
+        let preferences = WorkoutAudioPreferences(store: defaults)
+        preferences.musicSelection = .auto
+        XCTAssertEqual(preferences.prepareMusicForNextWorkout(), .pulseGrid)
+
+        let restored = WorkoutAudioPreferences(store: defaults)
+
+        XCTAssertEqual(restored.currentMusicTrack, .forwardArc)
+        XCTAssertEqual(restored.prepareMusicForNextWorkout(), .forwardArc)
+
+        restored.recordPlayedMusicTrack(.groundedOrbit)
+        let restoredAfterFallback = WorkoutAudioPreferences(store: defaults)
+        XCTAssertEqual(restoredAfterFallback.currentMusicTrack, .pulseGrid)
+        XCTAssertEqual(restoredAfterFallback.prepareMusicForNextWorkout(), .pulseGrid)
+    }
+
+    func testAutoFallbackCandidatesAvoidLastActuallyPlayedTrackWhenAlternativeExists() {
+        let preferences = WorkoutAudioPreferences(store: defaults)
+        preferences.musicSelection = .auto
+        XCTAssertEqual(preferences.prepareMusicForNextWorkout(), .pulseGrid)
+        preferences.recordPlayedMusicTrack(.pulseGrid)
+        XCTAssertEqual(preferences.prepareMusicForNextWorkout(), .forwardArc)
+
+        XCTAssertEqual(
+            preferences.playbackCandidates(),
+            [.forwardArc, .groundedOrbit, .pulseGrid]
+        )
+    }
+
+    func testSameProcessAutoPreviewAlwaysDescribesSubsequentPreparedTrack() {
+        let preferences = WorkoutAudioPreferences(store: defaults)
+        preferences.musicSelection = .auto
+
+        XCTAssertEqual(preferences.nextMusicTrackPreview, .pulseGrid)
+        XCTAssertEqual(preferences.prepareMusicForNextWorkout(), .pulseGrid)
+        XCTAssertEqual(preferences.nextMusicTrackPreview, .forwardArc)
+        XCTAssertEqual(preferences.prepareMusicForNextWorkout(), .forwardArc)
+        XCTAssertEqual(preferences.nextMusicTrackPreview, .groundedOrbit)
+    }
+
+    func testResolverFallsBackInCanonicalOrderWhenPreferredTrackIsUnavailable() {
+        let resolved = WorkoutMusicResolver.firstAvailable(preferred: .groundedOrbit) { track in
+            track != .groundedOrbit
+        }
+
+        XCTAssertEqual(resolved, .pulseGrid)
+        XCTAssertNil(WorkoutMusicResolver.firstAvailable(preferred: .pulseGrid) { _ in false })
+    }
+
+    func testBundledTrackBytesMatchApprovedHashesAndCorruptionIsRejected() throws {
+        for track in WorkoutMusicRegistry.canonicalTracks {
+            let url = try XCTUnwrap(Bundle.main.url(
+                forResource: track.resourceName,
+                withExtension: track.fileExtension,
+                subdirectory: "Audio"
+            ))
+            XCTAssertTrue(try WorkoutMusicResourceValidator.isValid(track: track, at: url))
+        }
+
+        let corruptURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("corrupt-\(UUID().uuidString).m4a")
+        try Data("not audio".utf8).write(to: corruptURL)
+        defer { try? FileManager.default.removeItem(at: corruptURL) }
+        XCTAssertFalse(try WorkoutMusicResourceValidator.isValid(track: .pulseGrid, at: corruptURL))
     }
 
     func testCorruptVolumeIsClampedAtPersistenceBoundary() {

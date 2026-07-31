@@ -128,9 +128,7 @@ struct WorkoutPlanView: View {
 
     private var audioSummaryText: some View {
         VStack(alignment: .leading, spacing: TempoTokens.Space.xxs) {
-            Text(audioPreferences.musicEnabled
-                 ? "Музыка · \(Int((audioPreferences.musicVolume * 100).rounded()))%"
-                 : "Музыка выключена")
+            Text(musicSummaryTitle)
                 .font(.body.weight(.semibold))
             Text(audioPreferences.voiceCoachEnabled
                  ? "Голосовой тренер включён"
@@ -140,6 +138,15 @@ struct WorkoutPlanView: View {
         }
         .fixedSize(horizontal: false, vertical: true)
         .accessibilityIdentifier("plan.audio.summary")
+    }
+
+    private var musicSummaryTitle: String {
+        let mode = audioPreferences.musicSelection == .auto ? "Авто · " : ""
+        guard audioPreferences.musicEnabled else {
+            return "Музыка выключена · \(mode)\(audioPreferences.currentMusicTrack.title)"
+        }
+        return "Музыка · \(mode)\(audioPreferences.currentMusicTrack.title) · "
+            + "\(Int((audioPreferences.musicVolume * 100).rounded()))%"
     }
 
     private var audioEditButton: some View {

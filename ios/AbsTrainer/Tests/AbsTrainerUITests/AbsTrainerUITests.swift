@@ -715,6 +715,118 @@ final class AbsTrainerUITests: XCTestCase {
     }
 
     @MainActor
+    func testMusicTrackSelectionRemainsReachableAtCompactAndDynamicTypeViewports() throws {
+        let configurations: [(CGSize, String?)] = [
+            (CGSize(width: 393, height: 852), nil),
+            (CGSize(width: 320, height: 568), "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge")
+        ]
+
+        for (viewport, contentSizeCategory) in configurations {
+            let app = launchApp(
+                viewport: viewport,
+                contentSizeCategory: contentSizeCategory,
+                extraArguments: ["-ResetAudioPreferences"]
+            )
+            let setup = setupButton(in: app)
+            let setupScroll = app.scrollViews["setup.scroll"]
+            let trackChoices = [
+                app.buttons["setup.audio.track.auto"],
+                app.buttons["setup.audio.track.pulseGrid"],
+                app.buttons["setup.audio.track.forwardArc"],
+                app.buttons["setup.audio.track.groundedOrbit"]
+            ]
+            XCTAssertTrue(setup.waitForExistence(timeout: 5))
+            XCTAssertTrue(setupScroll.waitForExistence(timeout: 3))
+            let visible = visibleFrame(above: setup, in: app.windows.firstMatch)
+            scrollIntoView(trackChoices, in: app, visibleFrame: visible, scrollSurface: setupScroll)
+            for choice in trackChoices {
+                XCTAssertTrue(choice.exists)
+                XCTAssertTrue(choice.isHittable)
+                XCTAssertGreaterThanOrEqual(choice.frame.height, 44)
+                assertContained(choice.frame, in: visible)
+            }
+
+            tapAndWaitForValue(trackChoices[2], value: "Выбрано")
+            setup.tap()
+            let summary = app.descendants(matching: .any)["plan.audio.summary"]
+            XCTAssertTrue(summary.waitForExistence(timeout: 5))
+            XCTAssertTrue(summary.label.contains("Forward Arc"))
+            attachScreenshot(named: "music-forward-\(Int(viewport.width))x\(Int(viewport.height))")
+            app.terminate()
+        }
+    }
+
+    @MainActor
+    func testAutoMusicAdvancesWithoutImmediateRepeatAcrossGeneratedWorkouts() throws {
+        let app = launchApp(
+            viewport: CGSize(width: 393, height: 852),
+            extraArguments: ["-ResetAudioPreferences"]
+        )
+        let setup = setupButton(in: app)
+        let setupScroll = app.scrollViews["setup.scroll"]
+        let auto = app.buttons["setup.audio.track.auto"]
+        XCTAssertTrue(setup.waitForExistence(timeout: 5))
+        scrollIntoView(
+            [auto],
+            in: app,
+            visibleFrame: visibleFrame(above: setup, in: app.windows.firstMatch),
+            scrollSurface: setupScroll
+        )
+        tapAndWaitForValue(auto, value: "Выбрано")
+
+        setup.tap()
+        let firstSummary = app.descendants(matching: .any)["plan.audio.summary"]
+        XCTAssertTrue(firstSummary.waitForExistence(timeout: 5))
+        let firstTrack = firstSummary.label
+        XCTAssertTrue(firstTrack.contains("Авто"))
+        app.buttons["plan.audio.edit"].tap()
+
+        let regeneratedSetup = setupButton(in: app)
+        XCTAssertTrue(regeneratedSetup.waitForExistence(timeout: 5))
+        regeneratedSetup.tap()
+        let secondSummary = app.descendants(matching: .any)["plan.audio.summary"]
+        XCTAssertTrue(secondSummary.waitForExistence(timeout: 5))
+        XCTAssertTrue(secondSummary.label.contains("Авто"))
+        XCTAssertNotEqual(secondSummary.label, firstTrack)
+        attachScreenshot(named: "music-auto-second-workout-393x852")
+    }
+
+    @MainActor
+    func testAllThreeTracksReachActualSimulatorPlaybackRuntime() throws {
+        let tracks = [
+            ("pulseGrid", "Pulse Grid"),
+            ("forwardArc", "Forward Arc"),
+            ("groundedOrbit", "Grounded Orbit")
+        ]
+
+        for (identifier, title) in tracks {
+            let app = launchApp(
+                viewport: CGSize(width: 393, height: 852),
+                extraArguments: ["-ResetAudioPreferences", "-AudioRuntimeProbe"]
+            )
+            let setup = setupButton(in: app)
+            let setupScroll = app.scrollViews["setup.scroll"]
+            let music = app.switches["setup.audio.musicToggle"]
+            let track = app.buttons["setup.audio.track.\(identifier)"]
+            XCTAssertTrue(setup.waitForExistence(timeout: 5))
+            let visible = visibleFrame(above: setup, in: app.windows.firstMatch)
+            scrollIntoView([music, track], in: app, visibleFrame: visible, scrollSurface: setupScroll)
+            if music.value as? String != "1" { music.tap() }
+            tapAndWaitForValue(track, value: "Выбрано")
+            setup.tap()
+            XCTAssertTrue(app.buttons["Начать тренировку"].waitForExistence(timeout: 5))
+            app.buttons["Начать тренировку"].tap()
+
+            let runtimeTrack = app.descendants(matching: .any)["session.audio.track"]
+            XCTAssertTrue(runtimeTrack.waitForExistence(timeout: 5))
+            XCTAssertEqual(runtimeTrack.label, "Музыка · \(title)")
+            XCTAssertEqual(runtimeTrack.value as? String, "Воспроизводится")
+            attachScreenshot(named: "music-runtime-\(identifier)-393x852")
+            app.terminate()
+        }
+    }
+
+    @MainActor
     func testMobbinAuditSetupPlanAndActiveContracts() throws {
         let app = launchApp(viewport: CGSize(width: 393, height: 852))
 

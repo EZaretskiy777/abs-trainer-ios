@@ -1,7 +1,100 @@
 import AVFoundation
 import Combine
+import CryptoKit
 import Foundation
 import UIKit
+
+enum WorkoutMusicTrack: String, CaseIterable, Codable, Identifiable {
+    case pulseGrid
+    case forwardArc
+    case groundedOrbit
+
+    var id: WorkoutMusicTrack { self }
+    var fileExtension: String { "m4a" }
+
+    var title: String {
+        switch self {
+        case .pulseGrid: return "Pulse Grid"
+        case .forwardArc: return "Forward Arc"
+        case .groundedOrbit: return "Grounded Orbit"
+        }
+    }
+
+    var resourceName: String {
+        switch self {
+        case .pulseGrid: return "workout_music_pulse_grid_v3"
+        case .forwardArc: return "workout_music_forward_arc_v4"
+        case .groundedOrbit: return "workout_music_grounded_orbit_v3"
+        }
+    }
+
+    var sha256: String {
+        switch self {
+        case .pulseGrid:
+            return "75ce7234b1b1a826dbdb8384eaae8c79a7bf760cea5e27790e26e5134823bb19"
+        case .forwardArc:
+            return "1023ffe6be67874714cd13e8c51577d4734e0b192215510bdbbacde762ff20cf"
+        case .groundedOrbit:
+            return "60d8937a9c32b66d419546f1f339397c00c2e9f0ea39269c5710e9b697e42467"
+        }
+    }
+}
+
+enum WorkoutMusicSelection: String, CaseIterable, Codable, Identifiable {
+    case auto
+    case pulseGrid
+    case forwardArc
+    case groundedOrbit
+
+    var id: WorkoutMusicSelection { self }
+
+    var title: String {
+        switch self {
+        case .auto: return "Авто"
+        case .pulseGrid: return WorkoutMusicTrack.pulseGrid.title
+        case .forwardArc: return WorkoutMusicTrack.forwardArc.title
+        case .groundedOrbit: return WorkoutMusicTrack.groundedOrbit.title
+        }
+    }
+
+    var explicitTrack: WorkoutMusicTrack? {
+        switch self {
+        case .auto: return nil
+        case .pulseGrid: return .pulseGrid
+        case .forwardArc: return .forwardArc
+        case .groundedOrbit: return .groundedOrbit
+        }
+    }
+}
+
+enum WorkoutMusicRegistry {
+    static let canonicalTracks = WorkoutMusicTrack.allCases
+}
+
+enum WorkoutMusicResolver {
+    static func firstAvailable(
+        preferred: WorkoutMusicTrack,
+        isAvailable: (WorkoutMusicTrack) -> Bool
+    ) -> WorkoutMusicTrack? {
+        let candidates = [preferred] + WorkoutMusicRegistry.canonicalTracks.filter { $0 != preferred }
+        return candidates.first(where: isAvailable)
+    }
+
+    static func next(after previous: WorkoutMusicTrack?) -> WorkoutMusicTrack {
+        let tracks = WorkoutMusicRegistry.canonicalTracks
+        guard let previous, let index = tracks.firstIndex(of: previous) else {
+            return tracks[0]
+        }
+        return tracks[(index + 1) % tracks.count]
+    }
+}
+
+enum WorkoutMusicResourceValidator {
+    static func isValid(track: WorkoutMusicTrack, at url: URL) throws -> Bool {
+        let digest = SHA256.hash(data: try Data(contentsOf: url, options: .mappedIfSafe))
+        return digest.map { String(format: "%02x", $0) }.joined() == track.sha256
+    }
+}
 
 @MainActor
 final class WorkoutAudioPreferences: ObservableObject {
@@ -9,6 +102,10 @@ final class WorkoutAudioPreferences: ObservableObject {
         static let musicEnabled = "audio.v1.musicEnabled"
         static let musicVolume = "audio.v1.musicVolume"
         static let voiceCoachEnabled = "audio.v1.voiceCoachEnabled"
+        static let musicSelection = "audio.v2.musicSelection"
+        static let lastAutoTrack = "audio.v2.lastAutoTrack"
+        static let currentMusicTrack = "audio.v2.currentMusicTrack"
+        static let lastPlayedTrack = "audio.v2.lastPlayedTrack"
     }
 
     @Published var musicEnabled: Bool {
@@ -30,18 +127,98 @@ final class WorkoutAudioPreferences: ObservableObject {
         didSet { store.set(voiceCoachEnabled, forKey: Keys.voiceCoachEnabled) }
     }
 
+    @Published var musicSelection: WorkoutMusicSelection {
+        didSet {
+            store.set(musicSelection.rawValue, forKey: Keys.musicSelection)
+            if let explicitTrack = musicSelection.explicitTrack {
+                currentMusicTrack = explicitTrack
+            } else {
+                currentMusicTrack = WorkoutMusicResolver.next(after: persistedLastAutoTrack)
+            }
+        }
+    }
+
+    @Published private(set) var currentMusicTrack: WorkoutMusicTrack {
+        didSet { store.set(currentMusicTrack.rawValue, forKey: Keys.currentMusicTrack) }
+    }
+
     private let store: UserDefaults
 
     init(store: UserDefaults = .standard) {
         self.store = store
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-ResetAudioPreferences") {
+            [
+                Keys.musicEnabled,
+                Keys.musicVolume,
+                Keys.voiceCoachEnabled,
+                Keys.musicSelection,
+                Keys.lastAutoTrack,
+                Keys.currentMusicTrack,
+                Keys.lastPlayedTrack
+            ].forEach { store.removeObject(forKey: $0) }
+        }
+        #endif
         musicEnabled = store.object(forKey: Keys.musicEnabled) as? Bool ?? false
         musicVolume = Self.clamp(store.object(forKey: Keys.musicVolume) as? Double ?? 0.50)
         voiceCoachEnabled = store.object(forKey: Keys.voiceCoachEnabled) as? Bool ?? true
+        let selection = store.string(forKey: Keys.musicSelection)
+            .flatMap(WorkoutMusicSelection.init(rawValue:)) ?? .pulseGrid
+        musicSelection = selection
+        currentMusicTrack = selection.explicitTrack
+            ?? WorkoutMusicResolver.next(after: store.string(forKey: Keys.lastAutoTrack)
+                .flatMap(WorkoutMusicTrack.init(rawValue:)))
         store.set(musicVolume, forKey: Keys.musicVolume)
+        store.set(selection.rawValue, forKey: Keys.musicSelection)
+        store.set(currentMusicTrack.rawValue, forKey: Keys.currentMusicTrack)
+    }
+
+    @discardableResult
+    func prepareMusicForNextWorkout() -> WorkoutMusicTrack {
+        if let explicitTrack = musicSelection.explicitTrack {
+            currentMusicTrack = explicitTrack
+            return explicitTrack
+        }
+        let next = WorkoutMusicResolver.next(after: persistedLastAutoTrack)
+        store.set(next.rawValue, forKey: Keys.lastAutoTrack)
+        currentMusicTrack = next
+        return next
+    }
+
+    func recordPlayedMusicTrack(_ track: WorkoutMusicTrack) {
+        currentMusicTrack = track
+        store.set(track.rawValue, forKey: Keys.lastPlayedTrack)
+        if musicSelection == .auto {
+            store.set(track.rawValue, forKey: Keys.lastAutoTrack)
+        }
+    }
+
+    var nextMusicTrackPreview: WorkoutMusicTrack {
+        musicSelection.explicitTrack ?? WorkoutMusicResolver.next(after: persistedLastAutoTrack)
+    }
+
+    func playbackCandidates() -> [WorkoutMusicTrack] {
+        let preferred = currentMusicTrack
+        guard musicSelection == .auto, let lastPlayedTrack else {
+            return [preferred] + WorkoutMusicRegistry.canonicalTracks.filter { $0 != preferred }
+        }
+        let nonRepeating = WorkoutMusicRegistry.canonicalTracks.filter {
+            $0 != preferred && $0 != lastPlayedTrack
+        }
+        let emergencyRepeat = lastPlayedTrack == preferred ? [] : [lastPlayedTrack]
+        return [preferred] + nonRepeating + emergencyRepeat
     }
 
     private static func clamp(_ value: Double) -> Double {
         min(1, max(0, value.isFinite ? value : 0.50))
+    }
+
+    private var persistedLastAutoTrack: WorkoutMusicTrack? {
+        store.string(forKey: Keys.lastAutoTrack).flatMap(WorkoutMusicTrack.init(rawValue:))
+    }
+
+    private var lastPlayedTrack: WorkoutMusicTrack? {
+        store.string(forKey: Keys.lastPlayedTrack).flatMap(WorkoutMusicTrack.init(rawValue:))
     }
 }
 
@@ -229,6 +406,10 @@ final class WorkoutAudioCoordinator: NSObject, ObservableObject, AVSpeechSynthes
 
     @Published private(set) var sessionMuted = false
     @Published private(set) var statusText: String?
+    @Published private(set) var activeMusicTrack: WorkoutMusicTrack?
+
+    var displayedMusicTrack: WorkoutMusicTrack { activeMusicTrack ?? preferences.currentMusicTrack }
+    var isMusicEnabled: Bool { preferences.musicEnabled }
 
     var onSafetyPause: (() -> Void)?
 
@@ -491,27 +672,40 @@ final class WorkoutAudioCoordinator: NSObject, ObservableObject, AVSpeechSynthes
 
     private func prepareMusicIfNeeded() {
         guard preferences.musicEnabled, !sessionMuted else { return }
-        guard let url = Bundle.main.url(
-            forResource: "workout_music_pulse_grid_v1",
-            withExtension: "m4a",
-            subdirectory: "Audio"
-        ) else {
-            statusText = "Звук тренировки недоступен"
-            return
+        let preferred = preferences.currentMusicTrack
+        let candidates = preferences.playbackCandidates()
+        for track in candidates {
+            guard let url = Bundle.main.url(
+                forResource: track.resourceName,
+                withExtension: track.fileExtension,
+                subdirectory: "Audio"
+            ), (try? WorkoutMusicResourceValidator.isValid(track: track, at: url)) == true else {
+                continue
+            }
+            do {
+                try audioSession.setCategory(.playback, mode: .default)
+                try audioSession.setActive(true)
+                let player = try AVAudioPlayer(contentsOf: url)
+                player.numberOfLoops = -1
+                player.prepareToPlay()
+                musicPlayer = player
+                applyIdleMusicGain()
+                guard player.play() else {
+                    musicPlayer = nil
+                    continue
+                }
+                preferences.recordPlayedMusicTrack(track)
+                activeMusicTrack = track
+                statusText = track == preferred
+                    ? nil
+                    : "\(preferred.title) недоступен — играет \(track.title)"
+                return
+            } catch {
+                musicPlayer = nil
+            }
         }
-        do {
-            try audioSession.setCategory(.playback, mode: .default)
-            try audioSession.setActive(true)
-            let player = try AVAudioPlayer(contentsOf: url)
-            player.numberOfLoops = -1
-            player.prepareToPlay()
-            musicPlayer = player
-            applyIdleMusicGain()
-            player.play()
-        } catch {
-            statusText = "Звук тренировки недоступен"
-            musicPlayer = nil
-        }
+        activeMusicTrack = nil
+        statusText = "Звук тренировки недоступен"
     }
 
     private func canSpeak(_ phrases: [CoachingPhrase]) -> Bool {
@@ -673,6 +867,7 @@ final class WorkoutAudioCoordinator: NSObject, ObservableObject, AVSpeechSynthes
     private func stopMusic() {
         musicPlayer?.stop()
         musicController?.stop()
+        activeMusicTrack = nil
     }
 
     static func liveWatchdog(
@@ -736,6 +931,7 @@ final class WorkoutAudioCoordinator: NSObject, ObservableObject, AVSpeechSynthes
         pauseMusic()
         if resetMusic {
             musicPlayer = nil
+            activeMusicTrack = nil
             musicController?.reset()
         }
     }

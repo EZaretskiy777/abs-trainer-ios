@@ -40,6 +40,14 @@ struct ExercisePlayerView: View {
         #endif
     }
 
+    private var audioRuntimeProbe: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-AudioRuntimeProbe")
+        #else
+        false
+        #endif
+    }
+
     init(
         plan: WorkoutPlan,
         audioPreferences: WorkoutAudioPreferences,
@@ -114,7 +122,7 @@ struct ExercisePlayerView: View {
             audioCoordinator.onSafetyPause = {
                 store.pause()
             }
-            if validationMode {
+            if validationMode, !audioRuntimeProbe {
                 store.completeFirstExercisePreparation()
             } else {
                 audioCoordinator.start(plan: plan) {
@@ -205,6 +213,16 @@ struct ExercisePlayerView: View {
                         .accessibilityIdentifier("session.active.progress")
 
                     nextExerciseCard
+
+                    if audioCoordinator.isMusicEnabled {
+                        Text("Музыка · \(audioCoordinator.displayedMusicTrack.title)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(inverseSecondaryColor)
+                            .accessibilityIdentifier("session.audio.track")
+                            .accessibilityValue(
+                                audioCoordinator.activeMusicTrack == nil ? "Подготовка" : "Воспроизводится"
+                            )
+                    }
 
                     if case .repetitionBased = store.currentItem.prescription {
                         repetitionControls

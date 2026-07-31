@@ -78,7 +78,10 @@ struct ContentView: View {
                         ExercisePlayerView(
                             plan: plan,
                             audioPreferences: audioPreferences,
-                            onRepeat: { path = [.plan] },
+                            onRepeat: {
+                                audioPreferences.prepareMusicForNextWorkout()
+                                path = [.plan]
+                            },
                             onNewWorkout: {
                                 self.plan = nil
                                 path.removeAll()
@@ -189,7 +192,7 @@ struct ContentView: View {
             HStack(alignment: .center, spacing: TempoTokens.Space.sm) {
                 TempoRail(total: 8, current: 2)
                     .accessibilityHidden(true)
-                Text("Pulse Grid готов")
+                Text("\(audioPreferences.nextMusicTrackPreview.title) готов")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(TempoTokens.ColorToken.auditPrimary)
                     .fixedSize()
@@ -283,6 +286,28 @@ struct ContentView: View {
             .accessibilityIdentifier("setup.audio.musicToggle")
 
             VStack(alignment: .leading, spacing: TempoTokens.Space.xs) {
+                Text("Трек").font(.body.weight(.semibold))
+                VStack(spacing: TempoTokens.Space.xs) {
+                    HStack(spacing: TempoTokens.Space.xs) {
+                        musicTrackChoice(.auto)
+                        musicTrackChoice(.pulseGrid)
+                    }
+                    HStack(spacing: TempoTokens.Space.xs) {
+                        musicTrackChoice(.forwardArc)
+                        musicTrackChoice(.groundedOrbit)
+                    }
+                }
+                if audioPreferences.musicSelection == .auto {
+                    Text("Следующая тренировка · \(audioPreferences.nextMusicTrackPreview.title)")
+                        .font(.caption)
+                        .foregroundStyle(TempoTokens.ColorToken.auditMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Выбор музыки тренировки")
+
+            VStack(alignment: .leading, spacing: TempoTokens.Space.xs) {
                 HStack {
                     Text("Громкость музыки").font(.body.weight(.semibold))
                     Spacer()
@@ -315,6 +340,19 @@ struct ContentView: View {
         }
         .disabled(isGenerating)
         .opacity(isGenerating ? 0.38 : 1)
+    }
+
+    private func musicTrackChoice(_ selection: WorkoutMusicSelection) -> some View {
+        TempoChoiceCell(
+            title: selection.title,
+            isSelected: audioPreferences.musicSelection == selection,
+            isEnabled: !isGenerating,
+            usesDarkCanvas: true,
+            accessibilityIdentifier: "setup.audio.track.\(selection.rawValue)"
+        ) {
+            audioPreferences.musicSelection = selection
+        }
+        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder
@@ -411,6 +449,7 @@ struct ContentView: View {
                 generationError = "Не удалось собрать тренировку. Параметры сохранены — попробуйте ещё раз."
                 return
             }
+            audioPreferences.prepareMusicForNextWorkout()
             plan = generatedPlan
             path.append(.plan)
         }
