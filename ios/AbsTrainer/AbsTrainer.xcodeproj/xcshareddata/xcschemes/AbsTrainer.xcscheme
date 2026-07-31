@@ -18,7 +18,7 @@
          <TestableReference skipped="NO" parallelizable="YES">
             <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="E10000000000000000000002" BuildableName="AbsTrainerTests.xctest" BlueprintName="AbsTrainerTests" ReferencedContainer="container:AbsTrainer.xcodeproj"/>
          </TestableReference>
-         <TestableReference skipped="NO" parallelizable="YES">
+         <TestableReference skipped="NO" parallelizable="NO">
             <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="E10000000000000000000003" BuildableName="AbsTrainerUITests.xctest" BlueprintName="AbsTrainerUITests" ReferencedContainer="container:AbsTrainer.xcodeproj"/>
          </TestableReference>
       </Testables>

@@ -987,6 +987,13 @@ final class AbsTrainerUITests: XCTestCase {
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }
 
+    private func waitForExistence(ofAny elements: [XCUIElement], timeout: TimeInterval) -> Bool {
+        let predicate = NSPredicate { _, _ in
+            elements.contains { $0.exists }
+        }
+        return wait(for: predicate, object: NSObject(), timeout: timeout)
+    }
+
     private func playbackMetric(_ key: String, in evidence: String) throws -> Int {
         let fields = Dictionary(
             uniqueKeysWithValues: evidence
@@ -1073,16 +1080,16 @@ final class AbsTrainerUITests: XCTestCase {
                 && setupControlScrollDragEndY != nil,
             scrollDragVelocity: setupControlScrollDragVelocity
         )
-        assertCriticalControls([decrement, increment], in: setupVisibleFrame)
-        assertNonOverlapping(decrement.frame, increment.frame)
+        let dialControlFrames = assertCriticalControls([decrement, increment], in: setupVisibleFrame)
+        assertNonOverlapping(dialControlFrames[0], dialControlFrames[1])
         attachScreenshot(named: "\(screenshotPrefix)-01-setup")
         setup.tap()
 
         let start = app.buttons["Начать тренировку"]
         let back = app.buttons["Назад к настройке"]
         XCTAssertTrue(start.waitForExistence(timeout: 5))
-        assertCriticalControls([back, start], in: container)
-        assertNonOverlapping(back.frame, start.frame)
+        let planControlFrames = assertCriticalControls([back, start], in: container)
+        assertNonOverlapping(planControlFrames[0], planControlFrames[1])
         attachScreenshot(named: "\(screenshotPrefix)-02-plan")
         start.tap()
 
@@ -1090,21 +1097,28 @@ final class AbsTrainerUITests: XCTestCase {
         var capturedRest = false
         for _ in 0..<100 {
             let restTitle = app.staticTexts["session.rest.nextTitle"]
-            if restTitle.waitForExistence(timeout: 1) {
+            let pause = app.buttons["session.pause"]
+            XCTAssertTrue(
+                waitForExistence(ofAny: [restTitle, pause], timeout: 2),
+                "Session must settle into an active or rest state"
+            )
+            if restTitle.exists {
                 let skipRest = app.buttons["Пропустить отдых"]
                 XCTAssertTrue(skipRest.waitForExistence(timeout: 2))
-                assertCriticalControls([skipRest], in: container)
+                let skipRestFrame = assertCriticalControls([skipRest], in: container)[0]
                 let restElements = [
                     app.staticTexts["session.rest.nextEyebrow"],
                     restTitle,
                     app.staticTexts["session.rest.nextDuration"]
                 ]
-                for element in restElements {
+                let restFrames = restElements.map { element -> CGRect in
                     XCTAssertTrue(element.waitForExistence(timeout: 2))
-                    XCTAssertFalse(element.frame.isEmpty)
-                    assertContained(element.frame, in: container.frame)
+                    let frame = element.frame
+                    XCTAssertFalse(frame.isEmpty)
+                    assertContained(frame, in: container.frame)
+                    return frame
                 }
-                assertPairwiseNonOverlapping((restElements + [skipRest]).map(\.frame))
+                assertPairwiseNonOverlapping(restFrames + [skipRestFrame])
                 if !capturedRest {
                     attachScreenshot(named: "\(screenshotPrefix)-04-rest")
                     capturedRest = true
@@ -1113,16 +1127,15 @@ final class AbsTrainerUITests: XCTestCase {
                 continue
             }
 
-            let pause = app.buttons["session.pause"]
-            XCTAssertTrue(pause.waitForExistence(timeout: 2))
+            XCTAssertTrue(pause.exists)
             let next = app.buttons.matching(
                 NSPredicate(
                     format: "label BEGINSWITH 'Далее' OR label == 'Завершить' OR label == 'Завершить набор' OR label == 'Подтвердить набор'"
                 )
             ).firstMatch
             XCTAssertTrue(next.waitForExistence(timeout: 2))
-            assertCriticalControls([pause, next], in: container)
-            assertNonOverlapping(pause.frame, next.frame)
+            let activeControlFrames = assertCriticalControls([pause, next], in: container)
+            assertNonOverlapping(activeControlFrames[0], activeControlFrames[1])
             let activeVisibleFrame = visibleFrame(above: pause, in: container)
             let activeScroll = app.scrollViews["session.active.scroll"]
             XCTAssertTrue(activeScroll.waitForExistence(timeout: 2))
@@ -1161,22 +1174,28 @@ final class AbsTrainerUITests: XCTestCase {
                 capturedActive = true
             }
 
+            let nextActionLabel = next.label
             next.tap()
-            let confirmation = app.descendants(matching: .any)["session.confirmation.finishEarly"]
-            if confirmation.waitForExistence(timeout: 0.5) {
-                let finishConfirmation = app.buttons["session.confirmation.finishEarly.destructive"]
-                revealModalAction(finishConfirmation, in: app, container: container)
-                XCTAssertTrue(finishConfirmation.isHittable)
-                finishConfirmation.tap()
-                break
-            }
-            let setConfirmation = app.descendants(matching: .any)["session.confirmation.finishSetEarly"]
-            if setConfirmation.waitForExistence(timeout: 0.5) {
-                let finishSetConfirmation = app.buttons["session.confirmation.finishSetEarly.destructive"]
-                revealModalAction(finishSetConfirmation, in: app, container: container)
-                XCTAssertTrue(finishSetConfirmation.isHittable)
-                finishSetConfirmation.tap()
+            if nextActionLabel == "Завершить" {
+                let confirmation = app.descendants(matching: .any)["session.confirmation.finishEarly"]
+                if confirmation.waitForExistence(timeout: 0.5) {
+                    let finishConfirmation = app.buttons["session.confirmation.finishEarly.destructive"]
+                    revealModalAction(finishConfirmation, in: app, container: container)
+                    XCTAssertTrue(finishConfirmation.isHittable)
+                    finishConfirmation.tap()
+                    break
+                }
                 if app.buttons["Повторить тренировку"].waitForExistence(timeout: 0.5) { break }
+            }
+            if nextActionLabel == "Завершить набор" {
+                let setConfirmation = app.descendants(matching: .any)["session.confirmation.finishSetEarly"]
+                if setConfirmation.waitForExistence(timeout: 0.5) {
+                    let finishSetConfirmation = app.buttons["session.confirmation.finishSetEarly.destructive"]
+                    revealModalAction(finishSetConfirmation, in: app, container: container)
+                    XCTAssertTrue(finishSetConfirmation.isHittable)
+                    finishSetConfirmation.tap()
+                    if app.buttons["Повторить тренировку"].waitForExistence(timeout: 0.5) { break }
+                }
             }
         }
 
@@ -1186,22 +1205,24 @@ final class AbsTrainerUITests: XCTestCase {
         let newWorkout = app.buttons["Настроить новую"]
         XCTAssertTrue(repeatWorkout.waitForExistence(timeout: 5))
         XCTAssertTrue(newWorkout.waitForExistence(timeout: 5))
-        assertCriticalControls([repeatWorkout, newWorkout], in: container)
-        XCTAssertGreaterThanOrEqual(repeatWorkout.frame.height, 58)
+        let finishControlFrames = assertCriticalControls([repeatWorkout, newWorkout], in: container)
+        let repeatWorkoutFrame = finishControlFrames[0]
+        let newWorkoutFrame = finishControlFrames[1]
+        XCTAssertGreaterThanOrEqual(repeatWorkoutFrame.height, 58)
         let dynamicType = app.descendants(matching: .any)["validation.dynamicType"].firstMatch
         let isAccessibility3 = dynamicType.exists && (dynamicType.value as? String) == "accessibility3"
         let maximumPrimaryHeight = isAccessibility3
             ? maximumAX3FinishPrimaryHeight
             : maximumFinishPrimaryHeight
         XCTAssertLessThanOrEqual(
-            repeatWorkout.frame.height,
+            repeatWorkoutFrame.height,
             maximumPrimaryHeight,
             "Finish primary action must remain bounded for the active Dynamic Type category"
         )
-        XCTAssertEqual(repeatWorkout.frame.minX, newWorkout.frame.minX, accuracy: tolerance)
-        XCTAssertEqual(repeatWorkout.frame.maxX, newWorkout.frame.maxX, accuracy: tolerance)
-        XCTAssertEqual(repeatWorkout.frame.midX, newWorkout.frame.midX, accuracy: tolerance)
-        assertNonOverlapping(repeatWorkout.frame, newWorkout.frame)
+        XCTAssertEqual(repeatWorkoutFrame.minX, newWorkoutFrame.minX, accuracy: tolerance)
+        XCTAssertEqual(repeatWorkoutFrame.maxX, newWorkoutFrame.maxX, accuracy: tolerance)
+        XCTAssertEqual(repeatWorkoutFrame.midX, newWorkoutFrame.midX, accuracy: tolerance)
+        assertNonOverlapping(repeatWorkoutFrame, newWorkoutFrame)
 
         let finishScroll = app.scrollViews.firstMatch
         XCTAssertTrue(finishScroll.waitForExistence(timeout: 2))
@@ -1225,10 +1246,11 @@ final class AbsTrainerUITests: XCTestCase {
                 scrollDragEndY: 0.05
             )
             XCTAssertTrue(element.isHittable, "Required Finish content must be visible and reachable")
-            XCTAssertFalse(element.frame.isEmpty, "Required Finish content must have a non-empty frame")
-            XCTAssertGreaterThan(element.frame.intersection(finishVisibleFrame).height, 0)
-            XCTAssertGreaterThanOrEqual(element.frame.minX, finishVisibleFrame.minX - tolerance)
-            XCTAssertLessThanOrEqual(element.frame.maxX, finishVisibleFrame.maxX + tolerance)
+            let frame = element.frame
+            XCTAssertFalse(frame.isEmpty, "Required Finish content must have a non-empty frame")
+            XCTAssertGreaterThan(frame.intersection(finishVisibleFrame).height, 0)
+            XCTAssertGreaterThanOrEqual(frame.minX, finishVisibleFrame.minX - tolerance)
+            XCTAssertLessThanOrEqual(frame.maxX, finishVisibleFrame.maxX + tolerance)
         }
         attachScreenshot(named: "\(screenshotPrefix)-05-finish")
     }
@@ -1249,16 +1271,20 @@ final class AbsTrainerUITests: XCTestCase {
         )
     }
 
-    private func assertCriticalControls(_ controls: [XCUIElement], in container: XCUIElement) {
-        assertCriticalControls(controls, in: container.frame)
+    @discardableResult
+    private func assertCriticalControls(_ controls: [XCUIElement], in container: XCUIElement) -> [CGRect] {
+        return assertCriticalControls(controls, in: container.frame)
     }
 
-    private func assertCriticalControls(_ controls: [XCUIElement], in containerFrame: CGRect) {
-        for control in controls {
+    @discardableResult
+    private func assertCriticalControls(_ controls: [XCUIElement], in containerFrame: CGRect) -> [CGRect] {
+        return controls.map { control in
             XCTAssertTrue(control.exists, "Critical control must exist")
             XCTAssertTrue(control.isHittable, "Critical control \(control) must be hittable")
-            XCTAssertFalse(control.frame.isEmpty, "Critical control \(control) must have a non-empty frame")
-            assertContained(control.frame, in: containerFrame)
+            let frame = control.frame
+            XCTAssertFalse(frame.isEmpty, "Critical control \(control) must have a non-empty frame")
+            assertContained(frame, in: containerFrame)
+            return frame
         }
     }
 
