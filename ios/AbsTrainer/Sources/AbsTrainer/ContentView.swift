@@ -24,6 +24,7 @@ struct ContentView: View {
     @AccessibilityFocusState private var setupTitleFocused: Bool
     @AccessibilityFocusState private var exerciseLibraryButtonFocused: Bool
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private let generator = WorkoutGenerator()
 
@@ -287,14 +288,23 @@ struct ContentView: View {
 
             VStack(alignment: .leading, spacing: TempoTokens.Space.xs) {
                 Text("Трек").font(.body.weight(.semibold))
-                VStack(spacing: TempoTokens.Space.xs) {
-                    HStack(spacing: TempoTokens.Space.xs) {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(spacing: TempoTokens.Space.xs) {
                         musicTrackChoice(.auto)
                         musicTrackChoice(.pulseGrid)
-                    }
-                    HStack(spacing: TempoTokens.Space.xs) {
                         musicTrackChoice(.forwardArc)
                         musicTrackChoice(.groundedOrbit)
+                    }
+                } else {
+                    VStack(spacing: TempoTokens.Space.xs) {
+                        HStack(spacing: TempoTokens.Space.xs) {
+                            musicTrackChoice(.auto)
+                            musicTrackChoice(.pulseGrid)
+                        }
+                        HStack(spacing: TempoTokens.Space.xs) {
+                            musicTrackChoice(.forwardArc)
+                            musicTrackChoice(.groundedOrbit)
+                        }
                     }
                 }
                 if audioPreferences.musicSelection == .auto {
